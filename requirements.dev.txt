@@ -1,1 +1,27 @@
 -r requirements.txt
+pytest
+isort
+bandit
+black
+flake8-black
+flake8-bugbear
+flake8-comprehensions
+flake8-eradicate
+flake8-mutable
+flake8-print
+flake8-return
+flake8-simplify
+flake8-todos
+flake8-cognitive-complexity
+flake8-variables-names
+flake8-annotations-complexity
+flake8-length
+flake8-isort
+flake8-pie
+flake8-quotes
+flake8-string-format
+dlint
+pep8-naming
+flake8-pytest
+flake8-test-name
+flake8-bandit
