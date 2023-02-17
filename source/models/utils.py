@@ -1,7 +1,7 @@
 import typing as ty
 
-import torch
 import numpy as np
+import torch
 
 
 def linear2conv2d(
@@ -10,7 +10,7 @@ def linear2conv2d(
 ) -> torch.nn.Conv2d:
     out_channels, in_channels = module.weight.shape
     if (
-        in_channels % input_spatial_feature_size[0] != 0 
+        in_channels % input_spatial_feature_size[0] != 0
         or in_channels % input_spatial_feature_size[1] != 0
     ):
         raise ValueError(
@@ -33,7 +33,6 @@ def generate_bilinear_kernel(
     kernel_size: int,
     dtype: torch.dtype,
 ) -> torch.Tensor:
-
     def expand_and_tile(arr: np.ndarray, tile_size: int) -> np.ndarray:
         return np.tile(np.expand_dims(arr, axis=-1), tile_size)
 

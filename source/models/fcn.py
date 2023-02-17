@@ -1,6 +1,5 @@
-from torch import nn
-
 import addict
+from torch import nn
 
 
 class FCN32VGG16(nn.Module):

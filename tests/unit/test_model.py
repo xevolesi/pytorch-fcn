@@ -1,11 +1,15 @@
 import pytest
 import torch
-from source.models.utils import linear2conv2d, generate_bilinear_kernel
+
+from source.models.utils import generate_bilinear_kernel, linear2conv2d
 
 
 @pytest.mark.parametrize(
     "module, input_spatial_feature_size",
-    [(torch.nn.Linear(in_features=25088, out_features=4096, bias=True), (7, 7)), (torch.nn.Linear(4096, 4096), (1, 1))]
+    [
+        (torch.nn.Linear(in_features=25088, out_features=4096, bias=True), (7, 7)),
+        (torch.nn.Linear(4096, 4096), (1, 1)),
+    ],
 )
 def test_linear2conv2d(module, input_spatial_feature_size):
     conv = linear2conv2d(module, input_spatial_feature_size)
@@ -18,8 +22,7 @@ def test_linear2conv2d(module, input_spatial_feature_size):
 
 
 @pytest.mark.parametrize(
-    "in_channels, out_channels, kernel_size",
-    [(64, 128, 3), (128, 256, 3), (21, 21, 64)]
+    "in_channels, out_channels, kernel_size", [(64, 128, 3), (128, 256, 3), (21, 21, 64)]
 )
 def test_generate_bilinear_kernel(in_channels, out_channels, kernel_size):
     conv_transpose = torch.nn.ConvTranspose2d(
@@ -30,4 +33,3 @@ def test_generate_bilinear_kernel(in_channels, out_channels, kernel_size):
     )
     conv_transpose.weight.data.copy_(bilinear_kernel)
     assert torch.allclose(bilinear_kernel, conv_transpose.weight.data)
-
