@@ -1,0 +1,8 @@
+path:
+  dataset: ./data
+training:
+  cache:
+    - masks
+    - images
+model:
+  n_classes: 21
