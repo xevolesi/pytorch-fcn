@@ -7,3 +7,5 @@ training:
   image_size: 224
 model:
   n_classes: 21
+  transplant_score_layer: true
+  init_upsampling_as_bilinear: true

@@ -1,7 +1,9 @@
 from copy import deepcopy
+from itertools import product
 
 import pytest
 import torch
+from torchvision.models import VGG16_Weights, vgg16
 
 from source.models import FCN32VGG16
 from source.models.utils import generate_bilinear_kernel, linear2conv2d
@@ -39,18 +41,22 @@ def test_generate_bilinear_kernel(in_channels, out_channels, kernel_size):
 
 
 @pytest.mark.parametrize(
-    "n_classes, spatial_size",
-    [
-        (1, 224),
-        (12, 448),
-        (21, 256),
-        (19, 384),
-    ],
+    "n_classes, spatial_size, transplant_score_layer, init_upsampling_as_bilinear",
+    list(product((1, 21), (224, 256), (True, False), (True, False))),
 )
-def test_fcn32vgg16(n_classes, spatial_size, get_test_config):
+def test_fcn32vgg16(
+    n_classes,
+    spatial_size,
+    transplant_score_layer,
+    init_upsampling_as_bilinear,
+    get_test_config,
+):
     config = deepcopy(get_test_config)
-    config.model.n_classes = n_classes
     config.training.image_size = spatial_size
+    config.model.n_classes = n_classes
+    config.model.transplant_score_layer = transplant_score_layer
+    config.model.init_upsampling_as_bilinear = init_upsampling_as_bilinear
+
     model = FCN32VGG16(config)
     input = torch.randn((1, 3, config.training.image_size, config.training.image_size))
 
@@ -58,3 +64,22 @@ def test_fcn32vgg16(n_classes, spatial_size, get_test_config):
     with torch.no_grad():
         output = model(input)
     assert tuple(output.shape) == (1, n_classes, *(config.training.image_size,) * 2)
+
+    if init_upsampling_as_bilinear:
+        upsampling_kernel = generate_bilinear_kernel(
+            in_channels=model.up.in_channels,
+            out_channels=model.up.out_channels,
+            kernel_size=model.up.kernel_size[0],
+            dtype=model.up.weight.dtype,
+        )
+        assert torch.allclose(upsampling_kernel, model.up.weight)
+        assert model.up.bias is None
+
+    if transplant_score_layer:
+        vgg = vgg16(weights=VGG16_Weights.DEFAULT)
+        trans_w = (
+            vgg.classifier[-1]
+            .weight.data[: config.model.n_classes]
+            .view(model.scorer.weight.shape)
+        )
+        assert torch.allclose(model.scorer.weight.data, trans_w)

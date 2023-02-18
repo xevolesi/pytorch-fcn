@@ -50,7 +50,8 @@ class FCN32VGG16(nn.Module):
         # FC classification layer of VGG16. They took first
         # `n_classes` rows of FC layer weights and transplant it
         # in convolution kernel: https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/surgery.py#L61
-        self._transplant_old_score_layer(last_vgg16_layer=vgg.classifier[-1])
+        if config.model.transplant_score_layer:
+            self._transplant_old_score_layer(last_vgg16_layer=vgg.classifier[-1])
 
         # And now we need to upsample scores' map to the target
         # image size: https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/voc-fcn32s/train.prototxt#L494
@@ -68,7 +69,8 @@ class FCN32VGG16(nn.Module):
 
         # In paper all upsampling layers were initialized with bilinear
         # upsampling kernel. And only last is trainable.
-        self._initialize_upsampling_layers()
+        if config.model.init_upsampling_as_bilinear:
+            self._initialize_upsampling_layers()
 
         # We don't need it anymore.
         del vgg
