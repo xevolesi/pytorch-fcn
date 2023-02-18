@@ -4,5 +4,6 @@ training:
   cache:
     - masks
     - images
+  image_size: 224
 model:
   n_classes: 21

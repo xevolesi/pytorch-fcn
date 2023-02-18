@@ -1,6 +1,9 @@
+from copy import deepcopy
+
 import pytest
 import torch
 
+from source.models import FCN32VGG16
 from source.models.utils import generate_bilinear_kernel, linear2conv2d
 
 
@@ -33,3 +36,25 @@ def test_generate_bilinear_kernel(in_channels, out_channels, kernel_size):
     )
     conv_transpose.weight.data.copy_(bilinear_kernel)
     assert torch.allclose(bilinear_kernel, conv_transpose.weight.data)
+
+
+@pytest.mark.parametrize(
+    "n_classes, spatial_size",
+    [
+        (1, 224),
+        (12, 448),
+        (21, 256),
+        (19, 384),
+    ],
+)
+def test_fcn32vgg16(n_classes, spatial_size, get_test_config):
+    config = deepcopy(get_test_config)
+    config.model.n_classes = n_classes
+    config.training.image_size = spatial_size
+    model = FCN32VGG16(config)
+    input = torch.randn((1, 3, config.training.image_size, config.training.image_size))
+
+    # We don't need gradients during this test.
+    with torch.no_grad():
+        output = model(input)
+    assert tuple(output.shape) == (1, n_classes, *(config.training.image_size,) * 2)
