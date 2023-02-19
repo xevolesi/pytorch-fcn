@@ -1,0 +1,55 @@
+dataset:
+  path: ./data
+
+training:
+  cache:
+    - masks
+    - images
+  image_size: 224
+model:
+  n_classes: 21
+  transplant_score_layer: true
+  init_upsampling_as_bilinear: true
+augmentations:
+  train:
+    transform:
+      __class_fullname__: Compose
+      transforms:
+
+        # To PyTorch tensors.
+        - __class_fullname__: Normalize
+          always_apply: true
+          max_pixel_value: 255.0
+          mean:
+            - 0.485
+            - 0.456
+            - 0.406
+          std:
+            - 0.229
+            - 0.224
+            - 0.225
+        - __class_fullname__: ToTensorV2
+          transpose_mask: true
+          always_apply: true
+      additional_targets: {'image': 'image', 'mask': 'mask'}
+  val:
+    transform:
+      __class_fullname__: Compose
+      transforms:
+
+        # To PyTorch tensors.
+        - __class_fullname__: Normalize
+          always_apply: true
+          max_pixel_value: 255.0
+          mean:
+            - 0.485
+            - 0.456
+            - 0.406
+          std:
+            - 0.229
+            - 0.224
+            - 0.225
+        - __class_fullname__: ToTensorV2
+          transpose_mask: true
+          always_apply: true
+      additional_targets: {'image': 'image', 'mask': 'mask'}

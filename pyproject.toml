@@ -1,0 +1,26 @@
+[tool.isort]
+use_parentheses = "True"
+line_length = 89
+skip = "build, .tox, venv, data, .github, .pytest_cache, __pycache__/, .git, notebooks"
+profile = "black"
+
+[tool.black]
+line-length = 89
+exclude = '''
+(
+    /(
+          \.eggs
+        | \.git
+        | \.mypy_cache
+        | \.tox
+        | .venv
+        | build
+        | dist
+        | venv
+        | \.github
+        | data
+        | \.pytest_cache
+        | notebooks
+    )/
+)
+'''
