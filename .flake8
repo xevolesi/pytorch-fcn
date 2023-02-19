@@ -18,7 +18,8 @@ exclude =
     dist,
     .github,
     .pytest_cache,
-    data
+    data,
+    notebooks
 
 max-line-length = 89
 inline-quotes = "

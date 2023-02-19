@@ -5,3 +5,4 @@ opencv-python-headless==4.7.0.68
 torch==1.13.1
 torchvision==0.14.1
 albumentations==1.3.0
+matplotlib==3.7.0
