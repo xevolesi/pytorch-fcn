@@ -1,5 +1,6 @@
-path:
-  dataset: ./data
+dataset:
+  path: ./data
+
 training:
   cache:
     - masks
