@@ -60,10 +60,15 @@ def create_voc_paths(base_path: str, subset: str) -> dict[str, str]:
     }
 
 
-def voc_mask2segmentation_mask(voc_mask: np.ndarray) -> np.ndarray:
+def voc_mask2segmentation_mask(
+    voc_mask: np.ndarray, exclude_background: bool = False
+) -> np.ndarray:
     mask_size = voc_mask.shape[:2]
-    segmentation_mask = np.zeros((*mask_size, len(VOC_COLORMAP)), dtype=np.float32)
-    for label_index, label in enumerate(VOC_COLORMAP):
+    color_match = VOC_COLORMAP
+    if exclude_background:
+        color_match = VOC_COLORMAP[1:]
+    segmentation_mask = np.zeros((*mask_size, len(color_match)), dtype=np.float32)
+    for label_index, label in enumerate(color_match):
         segmentation_mask[:, :, label_index] = np.all(voc_mask == label, axis=-1).astype(
             float
         )

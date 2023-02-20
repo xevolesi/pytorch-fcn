@@ -38,6 +38,7 @@ class VOCSegmentation(Dataset):
         ]
         self.image_size = (config.training.image_size, config.training.image_size)
         self.transforms = transforms
+        self.exclude_background_class = config.training.exclude_background_class
 
     def __len__(self) -> int:
         return len(self.image_container)
@@ -58,5 +59,5 @@ class VOCSegmentation(Dataset):
     def _read_mask(self, index: int) -> np.ndarray:
         mask = cv2.imread(self.mask_container[index])
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
-        mask = voc_mask2segmentation_mask(mask)
+        mask = voc_mask2segmentation_mask(mask, self.exclude_background_class)
         return cv2.resize(mask, self.image_size, interpolation=cv2.INTER_NEAREST)

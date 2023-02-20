@@ -34,10 +34,10 @@ class FCN32VGG16(nn.Module):
         self.convolutionized = nn.Sequential(
             linear2conv2d(vgg.classifier[0], (7, 7)),
             nn.ReLU(inplace=True),
-            nn.Dropout2d(p=0.5, inplace=True),
+            nn.Dropout2d(p=0.5, inplace=False),
             linear2conv2d(vgg.classifier[3], (1, 1)),
             nn.ReLU(inplace=True),
-            nn.Dropout2d(p=0.5, inplace=True),
+            nn.Dropout2d(p=0.5, inplace=False),
         )
 
         # Okay, now we need to add 1x1 convolution to compute scores
@@ -53,7 +53,7 @@ class FCN32VGG16(nn.Module):
         if config.model.transplant_score_layer:
             self._transplant_old_score_layer(last_vgg16_layer=vgg.classifier[-1])
 
-        # And now we need to upsample scores' map to the target
+        # And now we need to upsample score's map to the target
         # image size: https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/voc-fcn32s/train.prototxt#L494
         self.up = nn.ConvTranspose2d(
             in_channels=self.n_classes,
@@ -62,15 +62,20 @@ class FCN32VGG16(nn.Module):
             stride=32,
             bias=False,
         )
+        # Also i suppose this:
+        # https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/voc-fcn32s/train.prototxt#L500
+        # means that this layer is not trainable.
+        for param in self.up.parameters():
+            param.requires_grad = False
+
+        # In paper all upsampling layers were initialized with bilinear
+        # upsampling kernel.
+        if config.model.init_upsampling_as_bilinear:
+            self._initialize_upsampling_layers()
 
         # And now we need to crop out meaningfull part of our feature
         # map along height and width.
         self.crop = SpatialCaffeLikeCrop(offset=(19, 19))
-
-        # In paper all upsampling layers were initialized with bilinear
-        # upsampling kernel. And only last is trainable.
-        if config.model.init_upsampling_as_bilinear:
-            self._initialize_upsampling_layers()
 
         # We don't need it anymore.
         del vgg
