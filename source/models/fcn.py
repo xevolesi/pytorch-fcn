@@ -1,108 +1,183 @@
-from copy import deepcopy
-
-import addict
+import numpy as np
 import torch
 from torch import nn
-from torchvision.models import VGG16_Weights, vgg16
 
-from source.models.utils import generate_bilinear_kernel, linear2conv2d
-from source.modules import SpatialCaffeLikeCrop
+
+def conv_layer(in_channels, out_channles, kernel_size, stride=1, padding=0, bias=True):
+    layer = nn.Conv2d(in_channels, out_channles, kernel_size, stride, padding, bias=bias)
+    layer.weight.data.zero_()
+    if bias:
+        layer.bias.data.zero_()
+    return layer
+
+
+def get_upsampling_weight(in_channels, out_channels, kernel_size):
+    """
+    Make a 2D bilinear kernel suitable for unsampling
+    """
+    factor = (kernel_size + 1) // 2
+    if kernel_size % 2 == 1:
+        center = factor - 1
+    else:
+        center = factor - 0.5
+    og = np.ogrid[:kernel_size, :kernel_size]
+    bilinear_filter = (1 - abs(og[0] - center) / factor) * (
+        1 - abs(og[1] - center) / factor
+    )
+    weight = np.zeros(
+        (in_channels, out_channels, kernel_size, kernel_size), dtype=np.float32
+    )
+    weight[range(in_channels), range(out_channels), :, :] = bilinear_filter
+    return torch.from_numpy(weight).float()
+
+
+def bilinear_upsampling(in_channels, out_channels, kernel_size, stride, bias=False):
+    initial_weight = get_upsampling_weight(in_channels, out_channels, kernel_size)
+    layer = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, bias=bias)
+    layer.weight.data.copy_(initial_weight)
+    layer.weight.requires_grad = False
+    return layer
 
 
 class FCN32VGG16(nn.Module):
-    def __init__(self, config: addict.Dict) -> None:
+    def __init__(self, n_classes: int = 21) -> None:
         super().__init__()
-        self.n_classes = config.model.n_classes
-        vgg = vgg16(weights=VGG16_Weights.DEFAULT)
+        self.n_classes = n_classes
 
-        # As authors suggest in paper we need to keep VGG16 feature
-        # extractor as is.
-        self.features = deepcopy(vgg.features)
+        # VGG16.
+        self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
+        self.relu1_1 = nn.ReLU(inplace=True)
+        self.conv1_2 = nn.Conv2d(64, 64, 3, padding=1)
+        self.relu1_2 = nn.ReLU(inplace=True)
+        self.pool1 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/2
 
-        # Except that we need to change the first conv padding:
-        # Padding is 100 in first convolution to be able to upsample
-        # penultimate score feature map to target image size. This
-        # logic was directly copy from authors source code here:
-        # https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/voc-fcn32s/train.prototxt#L27
-        self.features[0].padding = (100, 100)
+        # conv2
+        self.conv2_1 = nn.Conv2d(64, 128, 3, padding=1)
+        self.relu2_1 = nn.ReLU(inplace=True)
+        self.conv2_2 = nn.Conv2d(128, 128, 3, padding=1)
+        self.relu2_2 = nn.ReLU(inplace=True)
+        self.pool2 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/4
 
-        # Now we need to convolutionized FC layers in classifier
-        # as suggested in paper. In VGG16 classifier there are 2
-        # droput layers between FC layers and authors also kept it.
-        # We change it to Dropout2d layer since we are trying to
-        # convolutionized FC layers.
-        self.convolutionized = nn.Sequential(
-            linear2conv2d(vgg.classifier[0], (7, 7)),
-            nn.ReLU(inplace=True),
-            nn.Dropout2d(p=0.5, inplace=False),
-            linear2conv2d(vgg.classifier[3], (1, 1)),
-            nn.ReLU(inplace=True),
-            nn.Dropout2d(p=0.5, inplace=False),
+        # conv3
+        self.conv3_1 = nn.Conv2d(128, 256, 3, padding=1)
+        self.relu3_1 = nn.ReLU(inplace=True)
+        self.conv3_2 = nn.Conv2d(256, 256, 3, padding=1)
+        self.relu3_2 = nn.ReLU(inplace=True)
+        self.conv3_3 = nn.Conv2d(256, 256, 3, padding=1)
+        self.relu3_3 = nn.ReLU(inplace=True)
+        self.pool3 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/8
+
+        # conv4
+        self.conv4_1 = nn.Conv2d(256, 512, 3, padding=1)
+        self.relu4_1 = nn.ReLU(inplace=True)
+        self.conv4_2 = nn.Conv2d(512, 512, 3, padding=1)
+        self.relu4_2 = nn.ReLU(inplace=True)
+        self.conv4_3 = nn.Conv2d(512, 512, 3, padding=1)
+        self.relu4_3 = nn.ReLU(inplace=True)
+        self.pool4 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/16
+
+        # conv5
+        self.conv5_1 = nn.Conv2d(512, 512, 3, padding=1)
+        self.relu5_1 = nn.ReLU(inplace=True)
+        self.conv5_2 = nn.Conv2d(512, 512, 3, padding=1)
+        self.relu5_2 = nn.ReLU(inplace=True)
+        self.conv5_3 = nn.Conv2d(512, 512, 3, padding=1)
+        self.relu5_3 = nn.ReLU(inplace=True)
+        self.pool5 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/32
+
+        self.fc1 = conv_layer(512, 4096, 7)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.drop1 = nn.Dropout2d()
+
+        self.fc2 = conv_layer(4096, 4096, 1)
+        self.relu2 = nn.ReLU(inplace=True)
+        self.drop2 = nn.Dropout2d()
+
+        self.score_fr = conv_layer(4096, self.n_classes, 1)
+        self.upscore = bilinear_upsampling(
+            self.n_classes, self.n_classes, 64, stride=32, bias=False
         )
 
-        # Okay, now we need to add 1x1 convolution to compute scores
-        # for n_classes as suggested in paper.
-        self.scorer = nn.Conv2d(
-            in_channels=4096, out_channels=self.n_classes, kernel_size=(1, 1)
-        )
+    def forward(self, tensor):
+        *_, height, width = tensor.shape
 
-        # Authors also transplant old score layers from last
-        # FC classification layer of VGG16. They took first
-        # `n_classes` rows of FC layer weights and transplant it
-        # in convolution kernel: https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/surgery.py#L61
-        if config.model.transplant_score_layer:
-            self._transplant_old_score_layer(last_vgg16_layer=vgg.classifier[-1])
+        # VGG16.
+        tensor = self.relu1_1(self.conv1_1(tensor))
+        tensor = self.relu1_2(self.conv1_2(tensor))
+        tensor = self.pool1(tensor)
 
-        # And now we need to upsample score's map to the target
-        # image size: https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/voc-fcn32s/train.prototxt#L494
-        self.up = nn.ConvTranspose2d(
-            in_channels=self.n_classes,
-            out_channels=self.n_classes,
-            kernel_size=64,
-            stride=32,
-            bias=False,
-        )
-        # Also i suppose this:
-        # https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/voc-fcn32s/train.prototxt#L500
-        # means that this layer is not trainable.
-        for param in self.up.parameters():
-            param.requires_grad = False
+        tensor = self.relu2_1(self.conv2_1(tensor))
+        tensor = self.relu2_2(self.conv2_2(tensor))
+        tensor = self.pool2(tensor)
 
-        # In paper all upsampling layers were initialized with bilinear
-        # upsampling kernel.
-        if config.model.init_upsampling_as_bilinear:
-            self._initialize_upsampling_layers()
+        tensor = self.relu3_1(self.conv3_1(tensor))
+        tensor = self.relu3_2(self.conv3_2(tensor))
+        tensor = self.relu3_3(self.conv3_3(tensor))
+        tensor = self.pool3(tensor)
 
-        # And now we need to crop out meaningfull part of our feature
-        # map along height and width.
-        self.crop = SpatialCaffeLikeCrop(offset=(19, 19))
+        tensor = self.relu4_1(self.conv4_1(tensor))
+        tensor = self.relu4_2(self.conv4_2(tensor))
+        tensor = self.relu4_3(self.conv4_3(tensor))
+        tensor = self.pool4(tensor)
 
-        # We don't need it anymore.
-        del vgg
+        tensor = self.relu5_1(self.conv5_1(tensor))
+        tensor = self.relu5_2(self.conv5_2(tensor))
+        tensor = self.relu5_3(self.conv5_3(tensor))
+        tensor = self.pool5(tensor)
 
-    def forward(self, tensor: torch.Tensor) -> torch.Tensor:
-        features = self.features(tensor)
-        logits = self.convolutionized(features)
-        scores = self.scorer(logits)
-        up = self.up(scores)
-        return self.crop(to_crop=up, reference=tensor)
+        tensor = self.relu1(self.fc1(tensor))
+        tensor = self.drop1(tensor)
 
-    def _initialize_upsampling_layers(self) -> None:
-        for module in self.modules():
-            if isinstance(module, nn.ConvTranspose2d):
-                module.weight.data.copy_(
-                    generate_bilinear_kernel(
-                        in_channels=module.in_channels,
-                        out_channels=module.out_channels,
-                        kernel_size=module.kernel_size[0],
-                        dtype=module.weight.dtype,
-                    )
-                )
+        tensor = self.relu2(self.fc2(tensor))
+        tensor = self.drop2(tensor)
 
-    def _transplant_old_score_layer(self, last_vgg16_layer: nn.Linear) -> None:
-        scorer_shape = self.scorer.weight.shape[0]
-        self.scorer.weight.data.copy_(
-            last_vgg16_layer.weight.data[:scorer_shape, ...].view(
-                self.scorer.weight.shape
-            )
-        )
+        tensor = self.score_fr(tensor)
+        tensor = self.upscore(tensor)
+        return tensor[:, :, 19 : 19 + height, 19 : 19 + width].contiguous()
+
+    def copy_params_from_vgg16(self, vgg16):
+        features = [
+            self.conv1_1,
+            self.relu1_1,
+            self.conv1_2,
+            self.relu1_2,
+            self.pool1,
+            self.conv2_1,
+            self.relu2_1,
+            self.conv2_2,
+            self.relu2_2,
+            self.pool2,
+            self.conv3_1,
+            self.relu3_1,
+            self.conv3_2,
+            self.relu3_2,
+            self.conv3_3,
+            self.relu3_3,
+            self.pool3,
+            self.conv4_1,
+            self.relu4_1,
+            self.conv4_2,
+            self.relu4_2,
+            self.conv4_3,
+            self.relu4_3,
+            self.pool4,
+            self.conv5_1,
+            self.relu5_1,
+            self.conv5_2,
+            self.relu5_2,
+            self.conv5_3,
+            self.relu5_3,
+            self.pool5,
+        ]
+
+        for l1, l2 in zip(vgg16.features, features):
+            if isinstance(l1, nn.Conv2d) and isinstance(l2, nn.Conv2d):
+                assert l1.weight.size() == l2.weight.size()
+                assert l1.bias.size() == l2.bias.size()
+                l2.weight.data.copy_(l1.weight.data)
+                l2.bias.data.copy_(l1.bias.data)
+        for i, name in zip([0, 3], ["fc1", "fc2"]):
+            l1 = vgg16.classifier[i]
+            l2 = getattr(self, name)
+            l2.weight.data.copy_(l1.weight.data.view(l2.weight.size()))
+            l2.bias.data.copy_(l1.bias.data.view(l2.bias.size()))

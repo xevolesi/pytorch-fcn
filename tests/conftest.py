@@ -11,7 +11,6 @@ def get_test_config():
     config.training.device = "cpu"
     config.training.dataloader_num_workers = 0
     config.training.epochs = 1
-    config.training.batch_size = 2
+    config.training.batch_size = 1
     config.training.overfit_single_batch = False
-    config.training.cache = None
     return config

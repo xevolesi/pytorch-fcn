@@ -1,22 +1,24 @@
+import os
 import sys
-import typing as ty
 
 import addict
-import numpy as np
 import torch
 from loguru import logger
+from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
+from torchvision.models import VGG16_Weights, vgg16
 
-from source.datasets import VOCSegmentation
+from source.datasets.voc import create_torch_dataloaders
 from source.models import FCN32VGG16
 from source.utils.augmentations import get_albumentation_augs
-from source.utils.general import get_object_from_dict, reseed
+from source.utils.evaluation import validate
+from source.utils.general import get_cpu_state_dict, get_object_from_dict, reseed
 
 logger.remove()
 logger.add(
     sys.stdout,
     format=(
-        "[<green>{time: HH:mm:ss}</green> |"
+        "[<green>{time: HH:mm:ss}</green> | <blue>{level}</blue> | "
         "<magenta>training.py</magenta>:<yellow>{line}</yellow>] {message}"
     ),
     level="INFO",
@@ -50,43 +52,20 @@ def create_param_groups(
     ]
 
 
-def _fix_worker_seeds(worker_id: int) -> None:
-    """Fix seeds inside single worker."""
-    seed = np.random.get_state()[1][0] + worker_id
-    reseed(seed)
+def create_model(config: addict, device: torch.device):
+    model = FCN32VGG16(n_classes=config.model.n_classes)
+    model.copy_params_from_vgg16(vgg16(weights=VGG16_Weights.DEFAULT))
+    model = model.to(device)
+    if config.training.channels_last:
+        model = model.to(memory_format=torch.channels_last)
+    return model
 
 
-def train(config: addict.Dict) -> None:
+def train(config: addict.Dict, run_log_path: str) -> None:
     # Ingridients.
     device = torch.device(config.training.device)
-    augs = get_albumentation_augs(config)
-    train_set = VOCSegmentation(
-        config,
-        "train",
-        augs["train"],
-    )
-    val_set = VOCSegmentation(
-        config,
-        "val",
-        augs["val"],
-    )
-    train_loader = DataLoader(
-        train_set,
-        batch_size=config.training.batch_size,
-        num_workers=config.training.dataloader_num_workers,
-        pin_memory="cuda" in config.training.device,
-        worker_init_fn=_fix_worker_seeds,
-        shuffle=True,
-    )
-    train_loader = DataLoader(
-        val_set,
-        batch_size=config.training.batch_size,
-        num_workers=config.training.dataloader_num_workers,
-        pin_memory="cuda" in config.training.device,
-        worker_init_fn=_fix_worker_seeds,
-        shuffle=False,
-    )
-    model = FCN32VGG16(config).to(device)
+    loaders = create_torch_dataloaders(config, get_albumentation_augs(config))
+    model = create_model(config, device)
     optimizer = get_object_from_dict(
         config.optimizer,
         params=create_param_groups(
@@ -94,67 +73,91 @@ def train(config: addict.Dict) -> None:
         ),
     )
     criterion = get_object_from_dict(config.criterion)
+    scaler = GradScaler(enabled=device.type != "cpu")
 
-    # We may want to overfit single batch of 4 images just to be sure
-    # that pipeline works okay and our model can learn at least something.
     if config.training.overfit_single_batch:
-        train_loader = [
-            next(
-                iter(
-                    DataLoader(
-                        train_set,
-                        batch_size=4,
-                        num_workers=config.training.dataloader_num_workers,
-                        pin_memory="cuda" in config.training.device,
-                        worker_init_fn=_fix_worker_seeds,
-                        shuffle=True,
-                    )
-                )
-            )
-        ]
-        val_loader = train_loader
         config.training.epochs = 100
+        config.training.grad_acc_iters = 1
 
+    best_weights = None
+    best_metric = float("-inf")
     for epoch in range(config.training.epochs):
         # Reseed at the beginning to be sure that augmentation will be
         # different during each epoch.
         reseed(config.training.seed + epoch)
-
-        train_loss = train_one_epoch(
+        training_loss = train_one_epoch(
             model,
-            train_loader,
+            loaders["train"],
             optimizer,
             criterion,
+            scaler,
             device,
+            config.training.grad_acc_iters,
         )
+        metrics = validate(model, loaders["val"], criterion, device)
+        metrics = {name: tensor.item() for name, tensor in metrics.items()}
+
         logger.info(
-            "[EPOCH {epoch}/{ttl}] TL={tl:.5f}",
+            (
+                "[EPOCH {epoch}/{total_epochs}] "
+                "TL={tl:.2f}, "
+                "VL={vl:.2f}, "
+                "PixelAcc={pacc:.2f}, "
+                "PCAcc={per_class_acc:.2f}, "
+                "IoU={iou:.2f}, "
+                "FWAcc={freq_acc:.2f}"
+            ),
             epoch=epoch + 1,
-            tl=train_loss,
-            ttl=config.training.epochs,
+            total_epochs=config.training.epochs,
+            tl=training_loss.item(),
+            vl=metrics["loss"],
+            pacc=metrics["acc"],
+            per_class_acc=metrics["per_class_acc"],
+            iou=metrics["iu"],
+            freq_acc=metrics["freq_acc"],
         )
+
+        # Determine if there was any improvement.
+        if metrics["iu"] >= best_metric:
+            logger.info("New best model with IoU = {iou:.2f}", iou=metrics["iu"])
+            best_metric = metrics["iu"]
+            best_weights = get_cpu_state_dict(model)
+
+    # Save best model weights.
+    weights_path = os.path.join(
+        run_log_path, config.logs.weights_folder, f"fcn_iou_{best_metric}.pt"
+    )
+    torch.save(best_weights, weights_path)
 
 
 def train_one_epoch(
     model: torch.nn.Module,
     loader: DataLoader,
     optimizer: torch.optim.Optimizer,
-    criterion: ty.Any,
+    criterion: torch.nn.Module,
+    scaler: GradScaler,
     device: torch.device,
-) -> float:
+    grad_acc_iters: int = 1,
+) -> torch.Tensor:
     model.train()
     running_loss = torch.as_tensor(0.0, device=device)
+
+    # I don't want to use enumerate because it will
+    # implicitly trigger GPU-CPU sync.
+    step = 0  # noqa: SIM113
     for images, masks in loader:
-        optimizer.zero_grad()
         images = images.to(device, non_blocking=True)
-        masks = masks.to(device, non_blocking=True)
-        outputs = model(images)
-        loss = criterion(outputs, masks)
-        loss.backward()
-        optimizer.step()
+        masks = masks.to(device, non_blocking=True).long()
+        with torch.autocast(
+            device_type="cuda", dtype=torch.float16, enabled=device.type != "cpu"
+        ):
+            outputs = model(images)
+            loss = criterion(outputs, masks)
+        scaler.scale(loss).backward()
+        if (step + 1) % grad_acc_iters == 0:
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad(set_to_none=True)
         running_loss += loss
-    return (running_loss / len(loader)).item()
-
-
-if __name__ == "__main__":
-    train()
+        step += 1
+    return running_loss / len(loader)

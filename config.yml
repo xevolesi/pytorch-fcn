@@ -1,29 +1,41 @@
+logs:
+  log_dir: ./logs
+  weights_folder: weights
+  fixed_batch_predictions: batch_preds
+
 dataset:
-  path: ./data
-
-training:
-  seed: 39
-  device: cuda:0
-
-  # Whether ot overfit single batch of 4 images during 100 epochs.
-  overfit_single_batch: true
-
-  # Whether to exclude background class from target segmentation masks?
-  # NOTE: DON'T FORGET TO CHANGE n_classes IN MODEL SECTION IF YOU SET THIS TO True!
-  exclude_background_class: true
-
-  epochs: 10
-  cache:
-    - masks
-    - images
-  image_size: 224
-  batch_size: 20
-  dataloader_num_workers: 6
+  val:
+    __class_fullname__: source.datasets.voc.VOCSegmentationDataset
+    root: data
+    split: seg11valid
+  train:
+    __class_fullname__: source.datasets.voc.SBDDSegmentationDataset
+    root: data
+    split: train
 
 model:
-  n_classes: 20
-  transplant_score_layer: true
-  init_upsampling_as_bilinear: true
+  n_classes: 21
+
+training:
+
+  # Enable channel last format:
+  # https://pytorch.org/tutorials/intermediate/memory_format_tutorial.html
+  # On my V100 16GB i observed speed improvement using channels last.
+  channels_last: true
+
+  # Gradient accumulation step size.
+  grad_acc_iters: 1
+
+  # Whether to overfit model on single random image.
+  # Setting it to true will end up with the 100-epochs training
+  # procedure with single random image for training and validation.
+  overfit_single_batch: false
+
+  seed: 39
+  device: cuda:0
+  epochs: 13
+  batch_size: 1
+  dataloader_num_workers: 6
 
 # As in paper.
 optimizer:
@@ -33,7 +45,12 @@ optimizer:
   momentum: 0.9
 
 criterion:
-  __class_fullname__: torch.nn.BCEWithLogitsLoss
+  __class_fullname__: torch.nn.CrossEntropyLoss
+
+  # This is needed because difficult or border pixels are marked
+  # with 255. Inspired by paper's authors here:
+  # https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/voc-fcn32s/train.prototxt#L527
+  ignore_index: 255
 
 augmentations:
   train:

@@ -87,3 +87,7 @@ def get_object_from_dict(  # noqa: CCR001.
                 args.append(config_value)
             del dict_repr[param_name]
     return callable_(*args, **dict_repr)
+
+
+def get_cpu_state_dict(model: torch.nn.Module) -> dict[str, torch.Tensor]:
+    return {name: tensor.detach().cpu() for name, tensor in model.state_dict().items()}

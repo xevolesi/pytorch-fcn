@@ -1,3 +1,3 @@
-from .voc import VOCSegmentation
+from .voc import SBDDSegmentationDataset, VOCSegmentationDataset
 
-__all__ = ["VOCSegmentation"]
+__all__ = ["VOCSegmentationDataset", "SBDDSegmentationDataset"]

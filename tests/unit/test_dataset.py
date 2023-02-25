@@ -1,105 +1,94 @@
-import os
+import os.path as osp
 import random
 from copy import deepcopy
 from itertools import product
 
-import cv2
 import numpy as np
 import pytest
+import torch
 
-from source.datasets import VOCSegmentation
-from source.datasets.utils import (
-    VOC_COLORMAP,
-    create_voc_paths,
-    voc_mask2segmentation_mask,
+from source.datasets import SBDDSegmentationDataset, VOCSegmentationDataset
+from source.utils.augmentations import get_albumentation_augs
+from source.utils.general import get_object_from_dict
+
+_ALLOWED_SPLITS = {
+    "SBDDSegmentationDataset": SBDDSegmentationDataset._ALLOWED_SPLITS,
+    "VOCSegmentationDataset": VOCSegmentationDataset._ALLOWED_SPLITS,
+}
+_VOC_DATASETS_IMPLS = (
+    "source.datasets.voc.SBDDSegmentationDataset",
+    "source.datasets.voc.VOCSegmentationDataset",
 )
-from source.utils.general import read_config
-
-_CFG_PATH = "config.yml"
-
-cfg = read_config(_CFG_PATH)
-if not os.path.exists(cfg.dataset.path):
-    pytest.skip(
-        f"Unable to find `{cfg.dataset.path}`. Skipping ...", allow_module_level=True
-    )
-
+_ALLOWED_VOC_CLASS_INDICES = set(range(21)).union({-1})
 sys_random = random.SystemRandom()
 
 
-@pytest.mark.parametrize("subset", ["train", "val"])
-def test_create_voc_paths(subset, get_test_config):
-    base_path = os.path.join(get_test_config.dataset.path, VOCSegmentation._PREFIX_PATH)
-    paths = create_voc_paths(base_path, subset)
-    assert os.path.exists(paths["image_set"])
-    assert os.path.exists(paths["images"])
-    assert os.path.exists(paths["masks"])
-
-
 @pytest.mark.parametrize(
-    "subset, exclude_background",
-    list(product(["train", "val"], [True, False])),
-)
-def test_voc_mask2segmentation_mask(subset, exclude_background, get_test_config):
-    config = deepcopy(get_test_config)
-    config.training.exclude_background_class = exclude_background
-    base_path = os.path.join(config.dataset.path, VOCSegmentation._PREFIX_PATH)
-    paths = create_voc_paths(base_path, subset)
-    with open(paths["image_set"], "r") as tfs:
-        sample_list = [sample.replace("\n", "") for sample in tfs.readlines()]
-        random_samples = [sys_random.choice(sample_list) for _ in range(5)]
-    masks_path = [
-        os.path.join(paths["masks"], img_name + ".png") for img_name in random_samples
-    ]
-    for mask_path in masks_path:
-        mask = cv2.imread(mask_path)
-        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
-        segm_mask = voc_mask2segmentation_mask(
-            mask, exclude_background=exclude_background
+    "dataset_impl, split, use_augs",
+    list(
+        product(
+            _VOC_DATASETS_IMPLS,
+            ["train", "val", "trainval", "seg11valid"],
+            [True, False],
         )
-        assert mask.shape[:2] == segm_mask.shape[:2]
-        color_matcher = VOC_COLORMAP
-        if config.training.exclude_background_class:
-            color_matcher = VOC_COLORMAP[1:]
-        assert segm_mask.shape[2] == len(color_matcher)
-        assert set(np.unique(segm_mask)) == {0.0, 1.0}
-        class_indices = np.nonzero(np.any((segm_mask == 1.0), axis=(0, 1)))[0]
-        for class_index in class_indices:
-            assert np.any(mask == color_matcher[class_index])
-
-
-@pytest.mark.parametrize(
-    "subset, exclude_background",
-    list(product(["train", "val", "something_else"], [True, False])),
+    ),
 )
-def test_dataset(subset, exclude_background, get_test_config):
+def test_voc_datasets(dataset_impl, split, use_augs, get_test_config):
+    """
+    Patch dataset.train attr in config with different values to do some
+    checks.
+    """
+
+    # Set up dataset attributes.
     config = deepcopy(get_test_config)
-    config.training.exclude_background_class = exclude_background
+    data_root = config.dataset.train.root
+    impl = {"__class_fullname__": dataset_impl, "split": split, "root": data_root}
+    config.dataset.train = impl
+
+    # Check that error was rised correctly.
     try:
-        dataset = VOCSegmentation(config, subset, transforms=None)
+        dataset = get_object_from_dict(config.dataset.train)
     except ValueError:
-        assert subset == "something_else"
+        allowed_splits = _ALLOWED_SPLITS.get(dataset_impl.split(".")[-1], None)
+        if allowed_splits is not None:
+            assert split not in allowed_splits
         return
-    assert len(dataset.image_container) == len(dataset.mask_container)
-    mask_names = [os.path.split(mask_path)[-1] for mask_path in dataset.mask_container]
-    image_names = [os.path.split(img_path)[-1] for img_path in dataset.mask_container]
-    assert all(
-        mask_name == image_name for mask_name, image_name in zip(mask_names, image_names)
-    )
-    assert all(os.path.exists(path) for path in dataset.image_container)
-    assert all(os.path.exists(path) for path in dataset.mask_container)
+
+    if use_augs:
+        augs = get_albumentation_augs(config)
+        dataset.set_transforms(augs.get(split))
+
+    # Check that we don't have empty paths.
+    assert all(osp.exists(image) for image in dataset.images)
+    assert all(osp.exists(label) for label in dataset.labels)
+    assert len(dataset.images) == len(dataset.labels) == len(dataset)
+
+    # Check that each image has corresponding mask.
+    for image_path, label_path in zip(dataset.images, dataset.labels):
+        image_name = osp.splitext(osp.split(image_path)[-1])[0]
+        label_name = osp.splitext(osp.split(label_path)[-1])[0]
+        assert image_name == label_name
+
     random_indices = [sys_random.choice(range(len(dataset))) for _ in range(5)]
     for index in random_indices:
         image, mask = dataset[index]
-        assert (
-            image.shape[:2]
-            == mask.shape[:2]
-            == (config.training.image_size, config.training.image_size)
-        )
-        color_matcher = VOC_COLORMAP
-        if config.training.exclude_background_class:
-            color_matcher = VOC_COLORMAP[1:]
-        assert mask.shape[2] == len(color_matcher)
-        class_indices = np.nonzero(np.any((mask == 1.0), axis=(0, 1)))[0]
-        assert set(class_indices).intersection(set(range(len(color_matcher)))) == set(
-            class_indices
-        )
+
+        assert mask.ndim == 2
+        assert image.ndim == 3
+
+        if use_augs and dataset.transforms is not None:
+            assert isinstance(image, torch.Tensor)
+            assert isinstance(mask, torch.Tensor)
+            assert mask.dtype == torch.int32
+            assert image.dtype == torch.float
+            assert image.shape[1:] == mask.shape
+            assert set(torch.unique(mask).numpy()).intersection(
+                _ALLOWED_VOC_CLASS_INDICES
+            ) == set(torch.unique(mask).numpy())
+        else:
+            assert isinstance(image, np.ndarray)
+            assert isinstance(mask, np.ndarray)
+            assert image.shape[:2] == mask.shape[:2]
+            assert set(np.unique(mask)).intersection(_ALLOWED_VOC_CLASS_INDICES) == set(
+                np.unique(mask)
+            )
