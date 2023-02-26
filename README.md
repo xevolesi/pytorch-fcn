@@ -53,8 +53,27 @@ If you want to use custom dataset than you have the following options:
 2. Add your custom dataset class to the `source/datasets` and modify the rest of the code.
 
 Choose the easiest option for you.
+
+# Installation
+Dev-env is the following:
+1. `Python==3.10`;
+2. `PyTorch==1.13.1` with `CUDA==11.6`;
+3. `Ubuntu: release 20.04, codename focal`;
+4. `NVidia Tesla V100 16GB`;
+5. `110 GB RAM`.
+
+To setup repo for your own experiments please run the following commands:
+```
+conda create -n fcn python=3.10 -y
+conda activate fcn
+pip install -r requirements.txt
+```
+
 # How to develop
-1. Clone this repo;
-2. Install development dependencies via `pip install -r requirements.dev.txt`.
-3. Use `make format` command to apply `black` and `isort`;
-4. Use `make run_tests` command to run tests.
+Clone this repo and install development dependencies via `pip install -r requirements.dev.txt`. `Makefile` consists of the following recipies:
+1. `lint` - run linter checking;
+2. `format` - run formatters;
+3. `verify_format` - run formatters is checking mode;
+4. `run_tests` - run all tests;
+5. `pre_push_test` - run formatters and tests.
+Use `make lint` to run linter checking and `make format` to apply formatters.

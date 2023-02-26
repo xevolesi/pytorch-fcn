@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 import torch
+from clearml import Task
 
 from source.utils.general import read_config, seed_everything
 from source.utils.training import train
@@ -18,6 +19,12 @@ torch.backends.cudnn.allow_tf32 = True
 
 def main():
     config = read_config("config.yml")
+    if config.training.use_clearml:
+        task = Task.init(project_name="FCN")
+        task.connect(config)
+        cm_logger = task.get_logger()
+    else:
+        cm_logger = None
 
     # Create folders for current run.
     os.makedirs(config.logs.log_dir, exist_ok=True)
@@ -32,7 +39,7 @@ def main():
     )
 
     seed_everything(config)
-    train(config, current_run_log_path)
+    train(config, current_run_log_path, cm_logger)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 import pytest
 import torch
+
 from source.modules import SpatialCaffeLikeCrop
 
 

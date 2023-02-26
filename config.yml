@@ -8,19 +8,34 @@ dataset:
     __class_fullname__: source.datasets.voc.VOCSegmentationDataset
     root: data
     split: seg11valid
+
+    # Load all images and masks as numpy arrays directly in your RAM.
+    # So, be carefull because it will take a lot of RAM!
+    cache_images: true
   train:
     __class_fullname__: source.datasets.voc.SBDDSegmentationDataset
     root: data
     split: train
 
+    # Load all images and masks as numpy arrays directly in your RAM.
+    # So, be carefull because it will take a lot of RAM!
+    cache_images: true
+
 model:
   n_classes: 21
+  trainable_upsampling: false
+  bilinear_upsampling_init: true
 
 training:
 
+  log_fixed_batch: true
+
+  use_clearml: true
+
   # Enable channel last format:
   # https://pytorch.org/tutorials/intermediate/memory_format_tutorial.html
-  # On my V100 16GB i observed speed improvement using channels last.
+  # On my V100 16GB FCN32s with VGG16 backbone trains 1.5x faster using
+  # channels last.
   channels_last: true
 
   # Gradient accumulation step size.
@@ -34,13 +49,13 @@ training:
   seed: 39
   device: cuda:0
   epochs: 13
-  batch_size: 1
+  batch_size: 20
   dataloader_num_workers: 6
 
 # As in paper.
 optimizer:
   __class_fullname__: torch.optim.SGD
-  lr: 0.0001
+  lr: 0.0032
   weight_decay: 0.0002
   momentum: 0.9
 
@@ -57,6 +72,10 @@ augmentations:
     transform:
       __class_fullname__: Compose
       transforms:
+        - __class_fullname__: albumentations.augmentations.geometric.resize.Resize
+          height: 500
+          width: 500
+          always_apply: true
 
         # To PyTorch tensors.
         - __class_fullname__: Normalize
@@ -78,6 +97,10 @@ augmentations:
     transform:
       __class_fullname__: Compose
       transforms:
+        - __class_fullname__: albumentations.augmentations.geometric.resize.Resize
+          height: 500
+          width: 500
+          always_apply: true
 
         # To PyTorch tensors.
         - __class_fullname__: Normalize

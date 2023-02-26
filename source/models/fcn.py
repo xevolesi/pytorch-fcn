@@ -1,48 +1,13 @@
-import numpy as np
-import torch
+import addict
 from torch import nn
 
-
-def conv_layer(in_channels, out_channles, kernel_size, stride=1, padding=0, bias=True):
-    layer = nn.Conv2d(in_channels, out_channles, kernel_size, stride, padding, bias=bias)
-    layer.weight.data.zero_()
-    if bias:
-        layer.bias.data.zero_()
-    return layer
-
-
-def get_upsampling_weight(in_channels, out_channels, kernel_size):
-    """
-    Make a 2D bilinear kernel suitable for unsampling
-    """
-    factor = (kernel_size + 1) // 2
-    if kernel_size % 2 == 1:
-        center = factor - 1
-    else:
-        center = factor - 0.5
-    og = np.ogrid[:kernel_size, :kernel_size]
-    bilinear_filter = (1 - abs(og[0] - center) / factor) * (
-        1 - abs(og[1] - center) / factor
-    )
-    weight = np.zeros(
-        (in_channels, out_channels, kernel_size, kernel_size), dtype=np.float32
-    )
-    weight[range(in_channels), range(out_channels), :, :] = bilinear_filter
-    return torch.from_numpy(weight).float()
-
-
-def bilinear_upsampling(in_channels, out_channels, kernel_size, stride, bias=False):
-    initial_weight = get_upsampling_weight(in_channels, out_channels, kernel_size)
-    layer = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, bias=bias)
-    layer.weight.data.copy_(initial_weight)
-    layer.weight.requires_grad = False
-    return layer
+from source.modules import conv_layer, upsampling_layer
 
 
 class FCN32VGG16(nn.Module):
-    def __init__(self, n_classes: int = 21) -> None:
+    def __init__(self, config: addict.Dict) -> None:
         super().__init__()
-        self.n_classes = n_classes
+        self.n_classes = config.model.n_classes
 
         # VGG16.
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
@@ -94,8 +59,14 @@ class FCN32VGG16(nn.Module):
         self.drop2 = nn.Dropout2d()
 
         self.score_fr = conv_layer(4096, self.n_classes, 1)
-        self.upscore = bilinear_upsampling(
-            self.n_classes, self.n_classes, 64, stride=32, bias=False
+        self.upscore = upsampling_layer(
+            self.n_classes,
+            self.n_classes,
+            kernel_size=64,
+            stride=32,
+            bias=False,
+            bilinear=config.model.bilinear_upsampling_init,
+            trainable=config.model.trainable_upsampling,
         )
 
     def forward(self, tensor):

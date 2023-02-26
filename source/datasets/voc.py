@@ -1,3 +1,4 @@
+import os
 import os.path as osp
 from functools import partial
 
@@ -10,6 +11,8 @@ from scipy.io import loadmat
 from torch.utils.data import DataLoader, Dataset, default_collate
 
 from source.utils.general import get_object_from_dict, reseed
+
+from .utils import parallel_image_reader, read_image, read_mask_sbdd, read_mask_voc
 
 DataPoint = tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]
 
@@ -108,11 +111,12 @@ def create_torch_dataloaders(
 class VOCSegmentationDataset(Dataset):
     _ALLOWED_SPLITS: set[str] = {"train", "val", "trainval", "seg11valid"}
 
-    def __init__(self, root: str, split: str) -> None:
+    def __init__(self, root: str, split: str, cache_images: bool = False) -> None:
         if split not in self._ALLOWED_SPLITS:
             raise ValueError(
                 f"Expect `split` to be one of {self._ALLOWED_SPLITS}, but got {split}"
             )
+        self.cache_images = cache_images
         self.transforms = None
         data_path = osp.join(root, "VOCdevkit", "VOC2012")
         split_path = osp.join(data_path, "ImageSets", "Segmentation", f"{split}.txt")
@@ -127,8 +131,14 @@ class VOCSegmentationDataset(Dataset):
         for name in names:
             self.images.append(osp.join(data_path, "JPEGImages", name + ".jpg"))
             self.labels.append(osp.join(data_path, "SegmentationClass", name + ".png"))
-        self.images = np.array(self.images)
-        self.labels = np.array(self.labels)
+        if self.cache_images:
+            self.images = parallel_image_reader(self.images, os.cpu_count(), read_image)
+            self.labels = parallel_image_reader(
+                self.labels, os.cpu_count(), read_mask_voc
+            )
+        else:
+            self.images = np.array(self.images)
+            self.labels = np.array(self.labels)
 
     def set_transforms(self, transforms: album.Compose | None = None) -> None:
         self.transforms = transforms
@@ -137,12 +147,16 @@ class VOCSegmentationDataset(Dataset):
         return len(self.images)
 
     def __getitem__(self, index: int) -> DataPoint:
-        image = np.array(Image.open(self.images[index]).convert("RGB"))
+        if self.cache_images:
+            image = self.images[index]
+            label = self.labels[index]
+        else:
+            image = np.array(Image.open(self.images[index]).convert("RGB"))
 
-        # It's important to read images with PIL and convert it to NumPy
-        # array as follows. More about it:
-        # https://stackoverflow.com/questions/49629933/ground-truth-pixel-labels-in-pascal-voc-for-semantic-segmentation
-        label = np.array(Image.open(self.labels[index])).astype(np.int32)
+            # It's important to read images with PIL and convert it to NumPy
+            # array as follows. More about it:
+            # https://stackoverflow.com/questions/49629933/ground-truth-pixel-labels-in-pascal-voc-for-semantic-segmentation
+            label = np.array(Image.open(self.labels[index])).astype(np.int32)
         if self.transforms is not None:
             T = self.transforms(image=image, mask=label)
             image = T["image"]
@@ -153,13 +167,13 @@ class VOCSegmentationDataset(Dataset):
 class SBDDSegmentationDataset(Dataset):
     _ALLOWED_SPLITS: set[str] = {"train", "val"}
 
-    def __init__(self, root: str, split: str) -> None:
+    def __init__(self, root: str, split: str, cache_images: bool = False) -> None:
         if split not in self._ALLOWED_SPLITS:
             raise ValueError(
                 f"Expect `split` to be one of {self._ALLOWED_SPLITS}, but got {split}"
             )
+        self.cache_images = cache_images
         self.transforms = None
-
         data_path = osp.join(root, "benchmark_RELEASE", "dataset")
         split_path = osp.join(data_path, f"{split}.txt")
 
@@ -171,8 +185,14 @@ class SBDDSegmentationDataset(Dataset):
         for name in names:
             self.images.append(osp.join(data_path, "img", name + ".jpg"))
             self.labels.append(osp.join(data_path, "cls", name + ".mat"))
-        self.images = np.array(self.images)
-        self.labels = np.array(self.labels)
+        if self.cache_images:
+            self.images = parallel_image_reader(self.images, os.cpu_count(), read_image)
+            self.labels = parallel_image_reader(
+                self.labels, os.cpu_count(), read_mask_sbdd
+            )
+        else:
+            self.images = np.array(self.images)
+            self.labels = np.array(self.labels)
 
     def set_transforms(self, transforms: album.Compose | None = None) -> None:
         self.transforms = transforms
@@ -181,9 +201,13 @@ class SBDDSegmentationDataset(Dataset):
         return len(self.images)
 
     def __getitem__(self, index: int) -> DataPoint:
-        image = np.array(Image.open(self.images[index]).convert("RGB"))
-        label = loadmat(self.labels[index])
-        label = label["GTcls"][0]["Segmentation"][0].astype(np.int32)
+        if self.cache_images:
+            image = self.images[index]
+            label = self.labels[index]
+        else:
+            image = np.array(Image.open(self.images[index]).convert("RGB"))
+            label = loadmat(self.labels[index])
+            label = label["GTcls"][0]["Segmentation"][0].astype(np.int32)
         if self.transforms is not None:
             T = self.transforms(image=image, mask=label)
             image = T["image"]

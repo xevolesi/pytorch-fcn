@@ -25,5 +25,5 @@ def validate(
         running_loss += loss
         hist += torch_hist(masks, outputs)
     metrics = compute_paper_metrics(hist)
-    metrics.update({"loss": running_loss / len(loader)})
+    metrics.update({"val_loss": running_loss / len(loader)})
     return metrics

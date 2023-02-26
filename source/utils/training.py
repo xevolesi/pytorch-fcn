@@ -3,6 +3,7 @@ import sys
 
 import addict
 import torch
+from clearml import Logger
 from loguru import logger
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
@@ -13,6 +14,7 @@ from source.models import FCN32VGG16
 from source.utils.augmentations import get_albumentation_augs
 from source.utils.evaluation import validate
 from source.utils.general import get_cpu_state_dict, get_object_from_dict, reseed
+from source.utils.logs import log_predictions
 
 logger.remove()
 logger.add(
@@ -53,7 +55,7 @@ def create_param_groups(
 
 
 def create_model(config: addict, device: torch.device):
-    model = FCN32VGG16(n_classes=config.model.n_classes)
+    model = FCN32VGG16(config)
     model.copy_params_from_vgg16(vgg16(weights=VGG16_Weights.DEFAULT))
     model = model.to(device)
     if config.training.channels_last:
@@ -61,7 +63,7 @@ def create_model(config: addict, device: torch.device):
     return model
 
 
-def train(config: addict.Dict, run_log_path: str) -> None:
+def train(config: addict.Dict, run_log_path: str, cm_logger: Logger | None) -> None:
     # Ingridients.
     device = torch.device(config.training.device)
     loaders = create_torch_dataloaders(config, get_albumentation_augs(config))
@@ -74,6 +76,9 @@ def train(config: addict.Dict, run_log_path: str) -> None:
     )
     criterion = get_object_from_dict(config.criterion)
     scaler = GradScaler(enabled=device.type != "cpu")
+
+    if config.training.log_fixed_batch:
+        fixed_batch = next(iter(loaders["train"]))
 
     if config.training.overfit_single_batch:
         config.training.epochs = 100
@@ -102,24 +107,37 @@ def train(config: addict.Dict, run_log_path: str) -> None:
                 "[EPOCH {epoch}/{total_epochs}] "
                 "TL={tl:.2f}, "
                 "VL={vl:.2f}, "
-                "PixelAcc={pacc:.2f}, "
-                "PCAcc={per_class_acc:.2f}, "
-                "IoU={iou:.2f}, "
-                "FWAcc={freq_acc:.2f}"
+                "PixelAcc={pacc:.5f}, "
+                "PCAcc={per_class_acc:.5f}, "
+                "IoU={iou:.5f}, "
+                "FWAcc={freq_acc:.5f}"
             ),
             epoch=epoch + 1,
             total_epochs=config.training.epochs,
             tl=training_loss.item(),
-            vl=metrics["loss"],
+            vl=metrics["val_loss"],
             pacc=metrics["acc"],
             per_class_acc=metrics["per_class_acc"],
             iou=metrics["iu"],
             freq_acc=metrics["freq_acc"],
         )
+        if cm_logger is not None:
+            cm_logger.report_scalar("Losses", "Train loss", training_loss.item(), epoch)
+            for metric_name, metric_value in metrics.items():
+                if metric_name == "val_loss":
+                    graph = "Losses"
+                else:
+                    graph = "Metrics"
+                cm_logger.report_scalar(graph, metric_name, metric_value, epoch)
+
+        batch_log_path = os.path.join(
+            run_log_path, config.logs.fixed_batch_predictions, f"epoch_{epoch+1}"
+        )
+        os.makedirs(batch_log_path, exist_ok=True)
+        log_predictions(model, fixed_batch, device, batch_log_path)
 
         # Determine if there was any improvement.
-        if metrics["iu"] >= best_metric:
-            logger.info("New best model with IoU = {iou:.2f}", iou=metrics["iu"])
+        if metrics["iu"] > best_metric:
             best_metric = metrics["iu"]
             best_weights = get_cpu_state_dict(model)
 
