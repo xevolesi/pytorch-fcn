@@ -7,7 +7,6 @@ from clearml import Logger
 from loguru import logger
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
-from torchvision.models import VGG16_Weights, vgg16
 
 from source.datasets.voc import create_torch_dataloaders
 from source.models import FCN32VGG16
@@ -56,7 +55,6 @@ def create_param_groups(
 
 def create_model(config: addict, device: torch.device):
     model = FCN32VGG16(config)
-    model.copy_params_from_vgg16(vgg16(weights=VGG16_Weights.DEFAULT))
     model = model.to(device)
     if config.training.channels_last:
         model = model.to(memory_format=torch.channels_last)
