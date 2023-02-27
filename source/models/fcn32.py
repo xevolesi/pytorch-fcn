@@ -8,11 +8,10 @@ from source.modules import conv_layer, upsampling_layer
 from .backbones import ConvolutionizedVGG16
 
 
-class FCN32VGG16(nn.Module):
+class FCN32s(nn.Module):
     def __init__(self, config: addict.Dict) -> None:
         super().__init__()
         self.n_classes = config.model.n_classes
-        self.stride = config.model.stride
         self.vgg = ConvolutionizedVGG16()
         self.vgg.copy_weights_from_torchvision(vgg16(weights=VGG16_Weights.DEFAULT))
 

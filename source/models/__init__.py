@@ -1,3 +1,3 @@
-from .fcn import FCN32VGG16
+from .fcn import FCN32s
 
-__all__ = ["FCN32VGG16"]
+__all__ = ["FCN32s"]
