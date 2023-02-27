@@ -24,8 +24,16 @@ def _get_upsampling_weight(
     in_channels: int, out_channels: int, kernel_size: int
 ) -> torch.Tensor:
     """
-    Make a 2D bilinear kernel suitable for unsampling
+    Make a 2D bilinear kernel suitable for unsampling.
+    Borrowed from here: https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/surgery.py#L33
     """
+    if in_channels != out_channels:
+        raise ValueError(
+            (
+                f"Support only `in_channels` == `out_channels`, "
+                f"but got `in_channels` = {in_channels}, `out_channels` = {out_channels}"
+            )
+        )
     factor = (kernel_size + 1) // 2
     if kernel_size % 2 == 1:
         center = factor - 1
@@ -55,6 +63,10 @@ def upsampling_layer(
     if bilinear:
         initial_weight = _get_upsampling_weight(in_channels, out_channels, kernel_size)
         layer.weight.data.copy_(initial_weight)
+        if bias:
+            layer.bias.data.zero_()
     if not trainable:
         layer.weight.requires_grad = False
+        if bias:
+            layer.bias.requires_grad = False
     return layer
