@@ -9,7 +9,7 @@ from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
 
 from source.datasets.voc import create_torch_dataloaders
-from source.models import FCN32VGG16
+from source.models import FCN8s, FCN16s, FCN32s
 from source.utils.augmentations import get_albumentation_augs
 from source.utils.evaluation import validate
 from source.utils.general import get_cpu_state_dict, get_object_from_dict, reseed
@@ -53,8 +53,20 @@ def create_param_groups(
     ]
 
 
-def create_model(config: addict, device: torch.device):
-    model = FCN32VGG16(config)
+def create_model(config: addict.Dict, device: torch.device):
+    if config.model.arch == "fcn32":
+        model = FCN32s(config)
+    elif config.model.arch == "fcn16":
+        model = FCN16s(config)
+    elif config.model.arch == "fcn8":
+        model = FCN8s(config)
+    else:
+        raise ValueError(
+            "Expected model's arch to be one of ('fcn8', 'fcn16', 'fcn32'), "
+            f"but got {config.model.arch}"
+        )
+    if config.training.prev_ckpt_path is not None:
+        model.load_weights_from_prev(torch.load(config.training.prev_ckpt_path))
     model = model.to(device)
     if config.training.channels_last:
         model = model.to(memory_format=torch.channels_last)

@@ -22,11 +22,13 @@ dataset:
     cache_images: true
 
 model:
+  arch: fcn16
   n_classes: 21
   trainable_upsampling: false
   bilinear_upsampling_init: true
 
 training:
+  prev_ckpt_path: logs/2023-02-27 21:05:11.899051/weights/fcn_iou_0.605137825012207.pt
 
   log_fixed_batch: true
 
@@ -55,7 +57,7 @@ training:
 # As in paper.
 optimizer:
   __class_fullname__: torch.optim.SGD
-  lr: 0.0032
+  lr: 0.00032
   weight_decay: 0.0002
   momentum: 0.9
 
