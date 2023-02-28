@@ -154,9 +154,8 @@ def train(config: addict.Dict, run_log_path: str, cm_logger: Logger | None) -> N
             best_weights = get_cpu_state_dict(model)
 
     # Save best model weights.
-    weights_path = os.path.join(
-        run_log_path, config.logs.weights_folder, f"fcn_iou_{best_metric}.pt"
-    )
+    model_name = f"fcn_{config.model.arch}_iou_{best_metric}.pt"
+    weights_path = os.path.join(run_log_path, config.logs.weights_folder, model_name)
     torch.save(best_weights, weights_path)
 
 
