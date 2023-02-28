@@ -59,6 +59,7 @@ class FCN16s(nn.Module):
         if prev_ckpt is None:
             return
         for param_name, param_tensor in self.named_parameters():
-            if (fcn32_param := prev_ckpt.get(param_name, None)) is not None:
-                if fcn32_param.shape == param_tensor.shape:
-                    param_tensor.data.copy_(fcn32_param.data)
+            if (fcn32_param := prev_ckpt.get(param_name, None)) is not None and (
+                fcn32_param.shape == param_tensor.shape
+            ):
+                param_tensor.data.copy_(fcn32_param.data)
