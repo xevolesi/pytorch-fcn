@@ -1,7 +1,3 @@
-from copy import deepcopy
-from itertools import product
-
-import pytest
 import torch
 from torchvision.models import vgg16
 
@@ -19,8 +15,7 @@ def _lazy_packed_conv_params(model):
     for module in filter(
         lambda module: isinstance(module, torch.nn.Conv2d), model.features
     ):
-        for param in module.parameters():
-            yield param
+        yield from module.parameters()
 
 
 def test_convolutionizedvgg16():
@@ -60,9 +55,10 @@ def test_fcn16s(get_test_config):
 
     # Check initialization with the previous model.
     for param_name, param_tensor in fcn16s.named_parameters():
-        if (fcn32_param := fcn32s_state_dict.get(param_name, None)) is not None:
-            if fcn32_param.shape == param_tensor.shape:
-                assert torch.allclose(param_tensor, fcn32_param)
+        if (fcn32_param := fcn32s_state_dict.get(param_name, None)) is not None and (
+            fcn32_param.shape == param_tensor.shape
+        ):
+            assert torch.allclose(param_tensor, fcn32_param)
 
     assert fcn16s.n_classes == get_test_config.model.n_classes
     with torch.no_grad():
@@ -78,9 +74,10 @@ def test_fcn8s(get_test_config):
 
     # Check initialization with the previous model.
     for param_name, param_tensor in fcn8s.named_parameters():
-        if (fcn16_param := fcn16s_state_dict.get(param_name, None)) is not None:
-            if fcn16_param.shape == param_tensor.shape:
-                assert torch.allclose(param_tensor, fcn16_param)
+        if (fcn16_param := fcn16s_state_dict.get(param_name, None)) is not None and (
+            fcn16_param.shape == param_tensor.shape
+        ):
+            assert torch.allclose(param_tensor, fcn16_param)
 
     assert fcn8s.n_classes == get_test_config.model.n_classes
     with torch.no_grad():
