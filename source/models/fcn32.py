@@ -32,4 +32,7 @@ class FCN32s(nn.Module):
         *_, height, width = tensor.shape
         stride_32, *_ = self.vgg(tensor)
         stride_32 = self.stride_32_up(self.score_stride_32(stride_32))
-        return stride_32[:, :, 19 : 19 + height, 19 : 19 + width]
+        return stride_32[:, :, 19 : 19 + height, 19 : 19 + width].contiguous()
+
+    def load_weights_from_prev(self, prev_ckpt: dict[str, torch.Tensor]) -> None:
+        return
