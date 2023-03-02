@@ -18,7 +18,7 @@ class FCN32s(nn.Module):
         # Stride 32 output of FCN:
         # Conv 1x1 to obtain class scores + Upsampling to source image size.
         self.score_stride_32 = conv_layer(4096, self.n_classes, 1)
-        self.stride_32_up = upsampling_layer(
+        self.final_up = upsampling_layer(
             self.n_classes,
             self.n_classes,
             kernel_size=64,
@@ -31,7 +31,7 @@ class FCN32s(nn.Module):
     def forward(self, tensor: torch.Tensor) -> torch.Tensor:
         *_, height, width = tensor.shape
         stride_32, *_ = self.vgg(tensor)
-        stride_32 = self.stride_32_up(self.score_stride_32(stride_32))
+        stride_32 = self.final_up(self.score_stride_32(stride_32))
         return stride_32[:, :, 19 : 19 + height, 19 : 19 + width].contiguous()
 
     def load_weights_from_prev(self, prev_ckpt: dict[str, torch.Tensor]) -> None:
