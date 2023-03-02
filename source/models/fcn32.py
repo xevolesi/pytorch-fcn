@@ -25,7 +25,7 @@ class FCN32s(nn.Module):
             stride=32,
             bias=False,
             bilinear=config.model.bilinear_upsampling_init,
-            trainable=config.model.trainable_upsampling,
+            trainable=config.model.trainable_final_upsampling,
         )
 
     def forward(self, tensor: torch.Tensor) -> torch.Tensor:
