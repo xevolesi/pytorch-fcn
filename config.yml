@@ -24,7 +24,15 @@ dataset:
 model:
   arch: fcn32
   n_classes: 21
-  trainable_upsampling: false
+
+  # In paper authors initialize intermediate upsamplings as 2D-bilinear upsampling kernel
+  # and allow them to train.
+  trainable_intermediate_upsampling: false
+  
+  # But final upsampling layer was frozen.
+  trainable_final_upsampling: false
+
+  # Initialize Transposed convolution as 2D bilinear upsampling kernel.
   bilinear_upsampling_init: true
 
 training:
