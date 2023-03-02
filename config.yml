@@ -22,13 +22,13 @@ dataset:
     cache_images: true
 
 model:
-  arch: fcn16
+  arch: fcn32
   n_classes: 21
   trainable_upsampling: false
   bilinear_upsampling_init: true
 
 training:
-  prev_ckpt_path: logs/2023-02-27 21:05:11.899051/weights/fcn_iou_0.605137825012207.pt
+  prev_ckpt_path: null
 
   log_fixed_batch: true
 
@@ -50,14 +50,14 @@ training:
 
   seed: 39
   device: cuda:0
-  epochs: 13
+  epochs: 30
   batch_size: 20
   dataloader_num_workers: 6
 
 # As in paper.
 optimizer:
   __class_fullname__: torch.optim.SGD
-  lr: 0.00032
+  lr: 0.0032
   weight_decay: 0.0002
   momentum: 0.9
 
@@ -78,6 +78,17 @@ augmentations:
           height: 500
           width: 500
           always_apply: true
+
+        # Geomatric transforms.
+        - __class_fullname__: albumentations.augmentations.geometric.transforms.ShiftScaleRotate
+          
+          # 32 pixel jittering as in paper: 0.064 * 500 = 32.
+          shift_limit: 0.064
+          rotate_limit: 5
+          scale_limit: 0
+        
+        # Mirroring as in paper.
+        - __class_fullname__: albumentations.augmentations.geometric.transforms.HorizontalFlip
 
         # To PyTorch tensors.
         - __class_fullname__: Normalize
