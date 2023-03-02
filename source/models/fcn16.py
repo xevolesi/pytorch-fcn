@@ -26,7 +26,7 @@ class FCN16s(nn.Module):
             stride=2,
             bias=False,
             bilinear=config.model.bilinear_upsampling_init,
-            trainable=config.model.trainable_upsampling,
+            trainable=config.model.trainable_intermediate_upsampling,
         )
 
         # Stride 16 output of FCN:
@@ -40,7 +40,7 @@ class FCN16s(nn.Module):
             stride=16,
             bias=False,
             bilinear=config.model.bilinear_upsampling_init,
-            trainable=config.model.trainable_upsampling,
+            trainable=config.model.trainable_final_upsampling,
         )
 
     def forward(self, tensor: torch.Tensor) -> torch.Tensor:
