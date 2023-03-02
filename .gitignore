@@ -6,6 +6,7 @@ __pycache__/
 # Project specifig
 data/
 logs/
+notebooks/
 
 # C extensions
 *.so
