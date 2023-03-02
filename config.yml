@@ -36,16 +36,27 @@ model:
   bilinear_upsampling_init: true
 
 training:
+
+  # When you want to train FCN16 or FCN8 you need to initialize them
+  # with the weights obtained from previous stride model. So, use this
+  # field to provide path to previous stride model weights.
+  # For example, for training FCN16 you need to provide the path to
+  # trained FCN32 model. For training FCN8 you need to provide the
+  # path to trained FCN16, and so on. For training FCN32 it should
+  # be null because there is no previous stride model.
   prev_ckpt_path: null
 
+  # Whether to log predictions on fixed batch after each epoch.
   log_fixed_batch: true
 
+  # You can completely disable ClearML logging by setting this to
+  # false.
   use_clearml: true
 
   # Enable channel last format:
   # https://pytorch.org/tutorials/intermediate/memory_format_tutorial.html
-  # On my V100 16GB FCN32s with VGG16 backbone trains 1.5x faster using
-  # channels last.
+  # On my V100 16GB FCN32s with VGG16 backbone trains 1.5x faster
+  # using channels last.
   channels_last: true
 
   # Gradient accumulation step size.
@@ -56,6 +67,8 @@ training:
   # procedure with single random image for training and validation.
   overfit_single_batch: false
 
+  # I'm pretty sure you don't need any comments about these hyper-
+  # parameters :)
   seed: 39
   device: cuda:0
   epochs: 30
