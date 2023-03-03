@@ -12,6 +12,12 @@ dataset:
     # Load all images and masks as numpy arrays directly in your RAM.
     # So, be carefull because it will take a lot of RAM!
     cache_images: true
+
+    # Authors trained FCN with a batch size = 1, so there was no need
+    # to resize them or pad together to form a batch. If you want to
+    # train with batches set this flag to true to apply auto-padding
+    # to square size.
+    batched: true
   train:
     __class_fullname__: source.datasets.voc.SBDDSegmentationDataset
     root: data
@@ -20,6 +26,12 @@ dataset:
     # Load all images and masks as numpy arrays directly in your RAM.
     # So, be carefull because it will take a lot of RAM!
     cache_images: true
+
+    # Authors trained FCN with a batch size = 1, so there was no need
+    # to resize them or pad together to form a batch. If you want to
+    # train with batches set this flag to true to apply auto-padding
+    # to square size.
+    batched: true
 
 model:
   arch: fcn32

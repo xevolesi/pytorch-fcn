@@ -39,21 +39,28 @@ def pad_to_square(
     )
 
 
-def read_image(image_path: str) -> np.ndarray:
-    return pad_to_square(np.array(Image.open(image_path).convert("RGB")))
+def read_image(image_path: str, batched: bool = False) -> np.ndarray:
+    image = np.array(Image.open(image_path).convert("RGB"))
+    if not batched:
+        return image
+    return pad_to_square(image)
 
 
-def read_mask_voc(mask_path: str) -> np.ndarray:
-    return pad_to_square(
-        np.array(Image.open(mask_path)).astype(np.int32), pad_values=255
-    )
+def read_mask_voc(mask_path: str, batched: bool = False) -> np.ndarray:
+    # It's important to read images with PIL and convert it to NumPy
+    # array as follows. More about it:
+    # https://stackoverflow.com/questions/49629933/ground-truth-pixel-labels-in-pascal-voc-for-semantic-segmentation
+    mask = np.array(Image.open(mask_path)).astype(np.int32)
+    if not batched:
+        return mask
+    return pad_to_square(mask, pad_values=255)
 
 
-def read_mask_sbdd(mask_path: str) -> np.ndarray:
-    mask = loadmat(mask_path)
-    return pad_to_square(
-        mask["GTcls"][0]["Segmentation"][0].astype(np.int32), pad_values=255
-    )
+def read_mask_sbdd(mask_path: str, batched: bool = False) -> np.ndarray:
+    mask = loadmat(mask_path)["GTcls"][0]["Segmentation"][0].astype(np.int32)
+    if not batched:
+        return mask
+    return pad_to_square(mask, pad_values=255)
 
 
 def parallel_image_reader(

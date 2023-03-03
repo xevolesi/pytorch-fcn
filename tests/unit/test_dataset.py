@@ -19,21 +19,22 @@ _VOC_DATASETS_IMPLS = (
     "source.datasets.voc.SBDDSegmentationDataset",
     "source.datasets.voc.VOCSegmentationDataset",
 )
-_ALLOWED_VOC_CLASS_INDICES = set(range(21)).union({-1})
+_ALLOWED_VOC_CLASS_INDICES = set(range(21)).union({255})
 sys_random = random.SystemRandom()
 
 
 @pytest.mark.parametrize(
-    "dataset_impl, split, use_augs",
+    "dataset_impl, split, batched, use_augs",
     list(
         product(
             _VOC_DATASETS_IMPLS,
             ["train", "val", "trainval", "seg11valid"],
             [True, False],
+            [True, False],
         )
     ),
 )
-def test_voc_datasets(dataset_impl, split, use_augs, get_test_config):
+def test_voc_datasets(dataset_impl, split, batched, use_augs, get_test_config):
     """
     Patch dataset.train attr in config with different values to do some
     checks.
@@ -42,7 +43,13 @@ def test_voc_datasets(dataset_impl, split, use_augs, get_test_config):
     # Set up dataset attributes.
     config = deepcopy(get_test_config)
     data_root = config.dataset.train.root
-    impl = {"__class_fullname__": dataset_impl, "split": split, "root": data_root}
+    impl = {
+        "__class_fullname__": dataset_impl,
+        "split": split,
+        "root": data_root,
+        "batched": batched,
+        "cache_images": False,
+    }
     config.dataset.train = impl
 
     # Check that error was rised correctly.
@@ -85,6 +92,12 @@ def test_voc_datasets(dataset_impl, split, use_augs, get_test_config):
             assert set(torch.unique(mask).numpy()).intersection(
                 _ALLOWED_VOC_CLASS_INDICES
             ) == set(torch.unique(mask).numpy())
+            if batched:
+                spatial_size_diff_image = abs(image.shape[1] - image.shape[2])
+                spatial_size_diff_mask = abs(mask.shape[0] - mask.shape[1])
+                assert spatial_size_diff_image == spatial_size_diff_mask
+                assert spatial_size_diff_image <= 1
+                assert spatial_size_diff_mask <= 1
         else:
             assert isinstance(image, np.ndarray)
             assert isinstance(mask, np.ndarray)
@@ -92,3 +105,9 @@ def test_voc_datasets(dataset_impl, split, use_augs, get_test_config):
             assert set(np.unique(mask)).intersection(_ALLOWED_VOC_CLASS_INDICES) == set(
                 np.unique(mask)
             )
+            if batched:
+                spatial_size_diff_image = abs(image.shape[0] - image.shape[1])
+                spatial_size_diff_mask = abs(mask.shape[0] - mask.shape[1])
+                assert spatial_size_diff_image == spatial_size_diff_mask
+                assert spatial_size_diff_image <= 1
+                assert spatial_size_diff_mask <= 1

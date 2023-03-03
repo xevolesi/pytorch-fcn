@@ -1,13 +1,12 @@
 import os
 import os.path as osp
+import warnings
 from functools import partial
 
 import addict
 import albumentations as album
 import numpy as np
 import torch
-from PIL import Image
-from scipy.io import loadmat
 from torch.utils.data import DataLoader, Dataset, default_collate
 
 from source.utils.general import get_object_from_dict, reseed
@@ -86,6 +85,13 @@ def create_torch_dataloaders(
     for subset in transforms:
         dataset = get_object_from_dict(getattr(config.dataset, subset))
         dataset.set_transforms(transforms[subset])
+        if not config.dataset.batched and config.training.batch_size > 1:
+            warnings.warn(
+                f"You requested training with batch size={config.training.batch_size}, "
+                "But set config.dataset.batched to False. "
+                "I'm setting it to True for you."
+            )
+            config.dataset.batched = True
         if config.training.overfit_single_batch:
             config.training.batch_size = 1
         to_shuffle = (subset == "train") and not config.training.overfit_single_batch
@@ -111,11 +117,14 @@ def create_torch_dataloaders(
 class VOCSegmentationDataset(Dataset):
     _ALLOWED_SPLITS: set[str] = {"train", "val", "trainval", "seg11valid"}
 
-    def __init__(self, root: str, split: str, cache_images: bool = False) -> None:
+    def __init__(
+        self, root: str, split: str, cache_images: bool = False, batched: bool = True
+    ) -> None:
         if split not in self._ALLOWED_SPLITS:
             raise ValueError(
                 f"Expect `split` to be one of {self._ALLOWED_SPLITS}, but got {split}"
             )
+        self.batched = batched
         self.cache_images = cache_images
         self.transforms = None
         data_path = osp.join(root, "VOCdevkit", "VOC2012")
@@ -132,9 +141,11 @@ class VOCSegmentationDataset(Dataset):
             self.images.append(osp.join(data_path, "JPEGImages", name + ".jpg"))
             self.labels.append(osp.join(data_path, "SegmentationClass", name + ".png"))
         if self.cache_images:
-            self.images = parallel_image_reader(self.images, os.cpu_count(), read_image)
+            self.images = parallel_image_reader(
+                self.images, os.cpu_count(), partial(read_image, batched=self.batched)
+            )
             self.labels = parallel_image_reader(
-                self.labels, os.cpu_count(), read_mask_voc
+                self.labels, os.cpu_count(), partial(read_mask_voc, batched=self.batched)
             )
         else:
             self.images = np.array(self.images)
@@ -151,12 +162,8 @@ class VOCSegmentationDataset(Dataset):
             image = self.images[index]
             label = self.labels[index]
         else:
-            image = np.array(Image.open(self.images[index]).convert("RGB"))
-
-            # It's important to read images with PIL and convert it to NumPy
-            # array as follows. More about it:
-            # https://stackoverflow.com/questions/49629933/ground-truth-pixel-labels-in-pascal-voc-for-semantic-segmentation
-            label = np.array(Image.open(self.labels[index])).astype(np.int32)
+            image = read_image(self.images[index], batched=self.batched)
+            label = read_mask_voc(self.labels[index], batched=self.batched)
         if self.transforms is not None:
             T = self.transforms(image=image, mask=label)
             image = T["image"]
@@ -167,11 +174,14 @@ class VOCSegmentationDataset(Dataset):
 class SBDDSegmentationDataset(Dataset):
     _ALLOWED_SPLITS: set[str] = {"train", "val"}
 
-    def __init__(self, root: str, split: str, cache_images: bool = False) -> None:
+    def __init__(
+        self, root: str, split: str, cache_images: bool = False, batched: bool = True
+    ) -> None:
         if split not in self._ALLOWED_SPLITS:
             raise ValueError(
                 f"Expect `split` to be one of {self._ALLOWED_SPLITS}, but got {split}"
             )
+        self.batched = batched
         self.cache_images = cache_images
         self.transforms = None
         data_path = osp.join(root, "benchmark_RELEASE", "dataset")
@@ -186,9 +196,13 @@ class SBDDSegmentationDataset(Dataset):
             self.images.append(osp.join(data_path, "img", name + ".jpg"))
             self.labels.append(osp.join(data_path, "cls", name + ".mat"))
         if self.cache_images:
-            self.images = parallel_image_reader(self.images, os.cpu_count(), read_image)
+            self.images = parallel_image_reader(
+                self.images, os.cpu_count(), partial(read_image, batched=self.batched)
+            )
             self.labels = parallel_image_reader(
-                self.labels, os.cpu_count(), read_mask_sbdd
+                self.labels,
+                os.cpu_count(),
+                partial(read_mask_sbdd, batched=self.batched),
             )
         else:
             self.images = np.array(self.images)
@@ -205,9 +219,8 @@ class SBDDSegmentationDataset(Dataset):
             image = self.images[index]
             label = self.labels[index]
         else:
-            image = np.array(Image.open(self.images[index]).convert("RGB"))
-            label = loadmat(self.labels[index])
-            label = label["GTcls"][0]["Segmentation"][0].astype(np.int32)
+            image = read_image(self.images[index], batched=self.batched)
+            label = read_mask_sbdd(self.labels[index], batched=self.batched)
         if self.transforms is not None:
             T = self.transforms(image=image, mask=label)
             image = T["image"]
