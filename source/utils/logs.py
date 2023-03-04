@@ -15,7 +15,7 @@ def log_predictions(
     fixed_batch: tuple[torch.Tensor, torch.Tensor],
     device: torch.device,
     folder_path: str,
-) -> None:
+) -> str:
     model.eval()
     images, labels = fixed_batch
     batch_size, _, height, width = images.shape
@@ -47,3 +47,4 @@ def log_predictions(
     grid = make_grid(log_batch, nrow=log_batch.shape[0] // 3)
     batch_path = os.path.join(folder_path, "fixed_batch.png")
     save_image(grid, batch_path)
+    return batch_path

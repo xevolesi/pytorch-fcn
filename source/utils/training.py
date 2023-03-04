@@ -89,7 +89,7 @@ def train(config: addict.Dict, run_log_path: str, cm_logger: Logger | None) -> N
 
     fixed_batch = None
     if config.training.log_fixed_batch:
-        fixed_batch = next(iter(loaders["train"]))
+        fixed_batch = next(iter(loaders["val"]))
 
     if config.training.overfit_single_batch:
         config.training.epochs = 100
@@ -146,7 +146,14 @@ def train(config: addict.Dict, run_log_path: str, cm_logger: Logger | None) -> N
                 run_log_path, config.logs.fixed_batch_predictions, f"epoch_{epoch+1}"
             )
             os.makedirs(batch_log_path, exist_ok=True)
-            log_predictions(model, fixed_batch, device, batch_log_path)
+            pred_path = log_predictions(model, fixed_batch, device, batch_log_path)
+            if cm_logger is not None:
+                cm_logger.report_image(
+                    "Predictions on fixed batch",
+                    f"Predictions for epoch {epoch}",
+                    iteration=epoch,
+                    local_path=pred_path,
+                )
 
         # Determine if there was any improvement.
         if metrics["iu"] > best_metric:
