@@ -88,7 +88,8 @@ def create_torch_dataloaders(
             warnings.warn(
                 f"You requested training with batch size={config.training.batch_size}, "
                 f"But set config.dataset.{subset}.batched to False. "
-                "I'm setting it to True for you."
+                "I'm setting it to True for you.",
+                stacklevel=2,
             )
             subset_dataset.batched = True
         dataset = get_object_from_dict(subset_dataset)
