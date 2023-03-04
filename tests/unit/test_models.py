@@ -3,83 +3,141 @@ from itertools import product
 
 import pytest
 import torch
-from torchvision.models import VGG16_Weights, vgg16
+from torchvision.models import vgg16
 
-from source.models import FCN32VGG16
-from source.models.utils import generate_bilinear_kernel, linear2conv2d
-
-
-@pytest.mark.parametrize(
-    "module, input_spatial_feature_size",
-    [
-        (torch.nn.Linear(in_features=25088, out_features=4096, bias=True), (7, 7)),
-        (torch.nn.Linear(4096, 4096), (1, 1)),
-    ],
-)
-def test_linear2conv2d(module, input_spatial_feature_size):
-    conv = linear2conv2d(module, input_spatial_feature_size)
-    linear_w = module.weight
-    linear_b = module.bias
-    conv_w = conv.weight
-    conv_b = conv.bias
-    assert torch.allclose(conv_w.view(linear_w.shape), linear_w)
-    assert torch.allclose(conv_b.view(linear_b.shape), linear_b)
+from source.models import FCN8s, FCN16s, FCN32s
+from source.models.backbones import ConvolutionizedVGG16
+from source.modules import _get_upsampling_weight
 
 
-@pytest.mark.parametrize(
-    "in_channels, out_channels, kernel_size", [(64, 128, 3), (128, 256, 3), (21, 21, 64)]
-)
-def test_generate_bilinear_kernel(in_channels, out_channels, kernel_size):
-    conv_transpose = torch.nn.ConvTranspose2d(
-        in_channels, out_channels, kernel_size, bias=False
-    )
-    bilinear_kernel = generate_bilinear_kernel(
-        in_channels, out_channels, kernel_size, dtype=conv_transpose.weight.dtype
-    )
-    conv_transpose.weight.data.copy_(bilinear_kernel)
-    assert torch.allclose(bilinear_kernel, conv_transpose.weight.data)
+def _lazy_conv_params(model):
+    for name, param in model.named_parameters():
+        if "conv" in name:
+            yield param
 
 
-@pytest.mark.parametrize(
-    "n_classes, spatial_size, transplant_score_layer, init_upsampling_as_bilinear",
-    list(product((1, 21), (224, 256), (True, False), (True, False))),
-)
-def test_fcn32vgg16(
-    n_classes,
-    spatial_size,
-    transplant_score_layer,
-    init_upsampling_as_bilinear,
-    get_test_config,
-):
-    config = deepcopy(get_test_config)
-    config.training.image_size = spatial_size
-    config.model.n_classes = n_classes
-    config.model.transplant_score_layer = transplant_score_layer
-    config.model.init_upsampling_as_bilinear = init_upsampling_as_bilinear
+def _lazy_packed_conv_params(model):
+    for module in filter(
+        lambda module: isinstance(module, torch.nn.Conv2d), model.features
+    ):
+        yield from module.parameters()
 
-    model = FCN32VGG16(config)
-    input = torch.randn((1, 3, config.training.image_size, config.training.image_size))
 
-    # We don't need gradients during this test.
+def _check_upsamplings(model, bilinear, final_trainable, inter_trainable):
+    for name, module in model.named_modules():
+        if not isinstance(module, torch.nn.ConvTranspose2d):
+            continue
+
+        # Check trainability.
+        check_flag = final_trainable if name == "final_up" else inter_trainable
+        for param in module.parameters():
+            assert param.requires_grad == check_flag
+
+        # Check initialization.
+        upsampling_weight = _get_upsampling_weight(
+            model.n_classes, model.n_classes, kernel_size=module.kernel_size[0]
+        )
+        is_success = torch.allclose(upsampling_weight, module.weight)
+        if bilinear:
+            assert is_success
+        else:
+            assert not is_success
+
+
+def test_convolutionizedvgg16():
+    vgg = ConvolutionizedVGG16()
     with torch.no_grad():
-        output = model(input)
-    assert tuple(output.shape) == (1, n_classes, *(config.training.image_size,) * 2)
+        random_tensor = torch.randn((1, 3, 500, 500))
+        _ = vgg(random_tensor)
+    torch_vgg = vgg16(weights=None)
+    vgg.copy_weights_from_torchvision(torch_vgg)
 
-    if init_upsampling_as_bilinear:
-        upsampling_kernel = generate_bilinear_kernel(
-            in_channels=model.up.in_channels,
-            out_channels=model.up.out_channels,
-            kernel_size=model.up.kernel_size[0],
-            dtype=model.up.weight.dtype,
-        )
-        assert torch.allclose(upsampling_kernel, model.up.weight)
-        assert model.up.bias is None
+    # Check features transplantation.
+    conved_convs = _lazy_conv_params(vgg)
+    torch_convs = _lazy_packed_conv_params(torch_vgg)
+    for c1, c2 in zip(conved_convs, torch_convs):
+        assert torch.allclose(c1, c2)
 
-    if transplant_score_layer:
-        vgg = vgg16(weights=VGG16_Weights.DEFAULT)
-        trans_w = (
-            vgg.classifier[-1]
-            .weight.data[: config.model.n_classes]
-            .view(model.scorer.weight.shape)
-        )
-        assert torch.allclose(model.scorer.weight.data, trans_w)
+    # Check convolutionized FC layers.
+    for source_index, conved_fc in zip([0, 3], [vgg.fc1, vgg.fc2]):
+        source = torch_vgg.classifier[source_index]
+        for src_param, conved_param in zip(source.parameters(), conved_fc.parameters()):
+            assert torch.allclose(src_param.view(conved_param.shape), conved_param)
+
+
+@pytest.mark.parametrize(
+    "bilinear, final_trainable", product([True, False], [True, False])
+)
+def test_fcn32s(bilinear, final_trainable, get_test_config):
+    config = deepcopy(get_test_config)
+    config.model.trainable_final_upsampling = final_trainable
+    config.model.bilinear_upsampling_init = bilinear
+    fcn32s = FCN32s(config)
+    assert fcn32s.n_classes == config.model.n_classes
+    with torch.no_grad():
+        random_tensor = torch.randn((1, 3, 224, 224))
+        out = fcn32s(random_tensor)
+    assert tuple(out.shape) == (1, config.model.n_classes, 224, 224)
+
+    # Let's check initialization and trainability.
+    _check_upsamplings(fcn32s, bilinear, final_trainable, False)
+
+
+@pytest.mark.parametrize(
+    "bilinear, final_trainable, inter_trainable",
+    product([True, False], [True, False], [True, False]),
+)
+def test_fcn16s(bilinear, final_trainable, inter_trainable, get_test_config):
+    config = deepcopy(get_test_config)
+    config.model.trainable_final_upsampling = final_trainable
+    config.model.bilinear_upsampling_init = bilinear
+    config.model.trainable_intermediate_upsampling = inter_trainable
+    fcn32s_state_dict = FCN32s(config).state_dict()
+    fcn16s = FCN16s(config)
+    fcn16s.load_weights_from_prev(fcn32s_state_dict)
+
+    # Check initialization with the previous model.
+    for param_name, param_tensor in fcn16s.named_parameters():
+        if (fcn32_param := fcn32s_state_dict.get(param_name, None)) is not None and (
+            fcn32_param.shape == param_tensor.shape
+        ):
+            assert torch.allclose(param_tensor, fcn32_param)
+
+    assert fcn16s.n_classes == config.model.n_classes
+    with torch.no_grad():
+        random_tensor = torch.randn((1, 3, 224, 224))
+        out = fcn16s(random_tensor)
+    assert tuple(out.shape) == (1, config.model.n_classes, 224, 224)
+
+    # Let's check initialization and trainability.
+    _check_upsamplings(fcn16s, bilinear, final_trainable, inter_trainable)
+
+
+@pytest.mark.parametrize(
+    "bilinear, final_trainable, inter_trainable",
+    product([True, False], [True, False], [True, False]),
+)
+def test_fcn8s(bilinear, final_trainable, inter_trainable, get_test_config):
+    config = deepcopy(get_test_config)
+    config.model.trainable_final_upsampling = final_trainable
+    config.model.bilinear_upsampling_init = bilinear
+    config.model.trainable_intermediate_upsampling = inter_trainable
+    fcn16s_state_dict = FCN16s(config).state_dict()
+    fcn8s = FCN8s(config)
+    fcn8s.load_weights_from_prev(fcn16s_state_dict)
+
+    # Check initialization with the previous model.
+    for param_name, param_tensor in fcn8s.named_parameters():
+        if (fcn16_param := fcn16s_state_dict.get(param_name, None)) is not None and (
+            fcn16_param.shape == param_tensor.shape
+        ):
+            assert torch.allclose(param_tensor, fcn16_param)
+
+    assert fcn8s.n_classes == config.model.n_classes
+    with torch.no_grad():
+        random_tensor = torch.randn((1, 3, 224, 224))
+        out = fcn8s(random_tensor)
+    assert tuple(out.shape) == (1, config.model.n_classes, 224, 224)
+
+    # Let's check initialization and trainability.
+    _check_upsamplings(fcn8s, bilinear, final_trainable, inter_trainable)

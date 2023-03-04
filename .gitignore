@@ -3,8 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Project specifig
 data/
-.vscode/
+logs/
+notebooks/
+
 # C extensions
 *.so
 

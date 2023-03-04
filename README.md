@@ -1,60 +1,79 @@
 # pytorch-fcn
-
 Implementation of [`Fully Convolutional Networks for Semantic Segmentation`](https://arxiv.org/abs/1411.4038) by Jonathan Long, Evan Shelhamer, Trevor Darrell, UC Berkeley
 
+# Results
+
+I tried to reproduce the results from the journal version of paper, but I did not succeed completely. I think this is because I used vgg16 from torchvision as a backbone and trained
+with a mini-batches without gradient accumulation (although, in theory, this should be 
+almost the same). Also, because of i trained with mini-batches, the learning rate is 
+slightly increased relative to the one from paper. Here are the results:
+
+| Architecture | mIOU     |
+|--------------|----------|
+| FCN32s       | 0.623813 |
+| FCN16s       | 0.642105 |
+| FCN8s        | 0.644392 |
+
+Actually i suppose that you can easily beat my results just by adding more augmentations
+or EMA model, so do it if you want :) In `predefined_configs` you will find configs for
+FCN32-FCN8 to reproduce my results.
+In order to get better result you can try the following:
+1. Add more standard data augmentation;
+2. Add advanced data augmentation techniques like CutMix, MixUp, Mosaic (YOLO variant) and so on;
+3. Replace transpose convolution with `torch.nn.Upsample(mode='nearest')` followed by 1x1 `Conv2d`;
+4. Do full mixing from different upsampling paths of FCN8;
+5. Use backbones from the best [`timm repo`](https://github.com/huggingface/pytorch-image-models) or at least torchvision vgg16_bn;
+6. ...
+
+## Fixed batch examples
+
+### FCN32s
+![FCN32s predictions for fixed batch](./assets/fcn32_fixed_batch.png)
+
+### FCN16s
+![FCN32s predictions for fixed batch](./assets/fcn16_fixed_batch.png)
+
+### FCN8s
+![FCN32s predictions for fixed batch](./assets/fcn8_fixed_batch.png)
+
 # Dataset
-## PASCAL VOC 2011
-I used [`PASCAL VOC 2011`](http://host.robots.ox.ac.uk/pascal/VOC/voc2011/index.html) as described in paper.
-In order to use it without any changes just create `data` directory in the root of this repo and put the data into it. So you need to have the following directory structure:
-```
-| ...
-| - data
-|     | - TrainVal
-|     |       |
-|     |       | - VOCdevkit
-|     |       |        |
-|     |       |        | - VOC2011
-|     |       |        |      |
-|     |       |        |      | - Annotations
-|     |       |        |      | - ImageSets
-|     |       |        |      | - JPEGImages
-|     |       |        |      | - SegmentationClass
-|     |       |        |      | - SegmentationObject
-| ...
-```
-If your dataset lies outside the repo directory than just modify `config.yml` file. Set
-`config.dataset.path` to the path of base directory with your PASCAL VOC 2011 dataset.
-For example you have your dataset inside `my_data` folder with the following structure:
-```
-| ...
-| - my_data
-|     | - TrainVal
-|     |       |
-|     |       | - VOCdevkit
-|     |       |        |
-|     |       |        | - VOC2011
-|     |       |        |      |
-|     |       |        |      | - Annotations
-|     |       |        |      | - ImageSets
-|     |       |        |      | - JPEGImages
-|     |       |        |      | - SegmentationClass
-|     |       |        |      | - SegmentationObject
-| ...
-```
-than just modify `config.yml` file in the following way:
-```
-dataset:
-    path: /path/to/my_data
-```
+
+## PASCAL VOC
+I used the same dataset as suggested here: https://github.com/shelhamer/fcn.berkeleyvision.org/blob/master/voc_layers.py
 
 ## Custom dataset
-If you want to use custom dataset than you have the following options:
-1. Translate your dataset to the PASCAL VOC 2011 format;
-2. Add your custom dataset class to the `source/datasets` and modify the rest of the code.
+I suggest to translate your dataset to PASCAL VOC format and then just use this repo as is
+to train on your own dataset, but of course you can write you own dataset implementation
+and use it.
 
-Choose the easiest option for you.
+# Installation
+You need `Python==3.10` and `PyTorch==1.13.1` with `CUDA==11.6`, but i think it's easy
+to run with other versions of PyTorch. Note that i was training the models with `NVidia Tesla V100 16GB` and `110 GB RAM`.
+I suggest to use conda for environment managing. To setup repo for your own
+experiments please run the following commands:
+```
+conda create -n fcn python=3.10 -y
+conda activate fcn
+pip install -r requirements.txt # or you can install from requirements.dev.txt
+```
+
+# How to train
+It's quite simple:
+1. Modify `config.yml` file according to your desires;
+2. Run `python train.py`.
+
+It shoud works okay.
+
 # How to develop
-1. Clone this repo;
-2. Install development dependencies via `pip install -r requirements.dev.txt`.
-3. Use `make format` command to apply `black` and `isort`;
-4. Use `make run_tests` command to run tests.
+Clone this repo and install development dependencies via `pip install -r requirements.dev.txt`. `Makefile` consists of the following recipies:
+1. `lint` - run linter checking;
+2. `format` - run formatters;
+3. `verify_format` - run formatters is checking mode;
+4. `run_tests` - run all tests;
+5. `pre_push_test` - run formatters and tests.
+Use `make lint` to run linter checking and `make format` to apply formatters.
+
+This repo contains some tests just to be sure that some tricks works correctly, 
+but unfortunatelly it doesn't contain any integration tests (test for the whole 
+modelling pipeline) just because it's really annoying to adapt them to free github runners.
+Note that running tests takes quite a lot of time.
