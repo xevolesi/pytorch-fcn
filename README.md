@@ -62,19 +62,13 @@ Dev-env is the following:
 4. `NVidia Tesla V100 16GB`;
 5. `110 GB RAM`.
 
-To setup repo for your own experiments please run the following commands:
+I suggest to use conda for environment managing. To setup repo for your own
+experiments please run the following commands:
 ```
 conda create -n fcn python=3.10 -y
 conda activate fcn
-pip install -r requirements.txt
+pip install -r requirements.txt # or you can install from requirements.dev.txt
 ```
-
-# Results
-| Architecture | Crop        | Backbone          | Trainable upsamplings | #epochs | Running time | mIOU     | ClearML URL                                                                                                                  |
-|--------------|-------------|-------------------|-----------------------|---------|--------------|----------|------------------------------------------------------------------------------------------------------------------------------|
-| FCN32        | center crop | torchvision VGG16 | false                 | 13      | 42.51 m      | 0.60502  | https://app.clear.ml/projects/3380a0f929714fb0a00b88fe46d44356/experiments/40ea261473874c659280e6c3de951af1/output/execution |
-| FCN32        | caffe crop  | torchvision VGG16 | false                 | 13      | 42.45 m      | 0.605138 | https://app.clear.ml/projects/3380a0f929714fb0a00b88fe46d44356/experiments/54caf397c7aa4566a551f4436c7915f6/output/execution |
-| FCN32        | caffe crop  | torchvision VGG16 | true                  | 13      | 43.14 m      | 0.604591 | https://app.clear.ml/projects/3380a0f929714fb0a00b88fe46d44356/experiments/1504db451e0241c083f7a6c1ddb6e3ae/output/execution |
 
 # How to develop
 Clone this repo and install development dependencies via `pip install -r requirements.dev.txt`. `Makefile` consists of the following recipies:
@@ -84,3 +78,6 @@ Clone this repo and install development dependencies via `pip install -r require
 4. `run_tests` - run all tests;
 5. `pre_push_test` - run formatters and tests.
 Use `make lint` to run linter checking and `make format` to apply formatters.
+
+This repo doesn't contain any integration tests (test for the whole modelling pipeline)
+just because it's really annoying to adapt them to free github runners.
