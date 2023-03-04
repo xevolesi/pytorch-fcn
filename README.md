@@ -2,57 +2,25 @@
 
 Implementation of [`Fully Convolutional Networks for Semantic Segmentation`](https://arxiv.org/abs/1411.4038) by Jonathan Long, Evan Shelhamer, Trevor Darrell, UC Berkeley
 
+# Results
+
+I tried to reproduce the results from the journal version of paper, but I did not succeed completely. I think this is because I used vgg16 from torchvision as a backbone and trained
+with a mini-batches without gradient accumulation (although, in theory, this should be 
+almost the same). Also, because of i trained with mini-batches, the learning rate is 
+slightly increased relative to the one from paper. Here are the results:
+
+| Architecture | mIOU     |
+|--------------|----------|
+| FCN32s       | 0.623813 |
+| FCN16s       | 0.642105 |
+| FCN8s        | 0.644392 |
+
+Actually i suppose that you can easily beat my results just by adding more augmentations
+or EMA model, so do it if you want :) In `predefined_configs` you will find configs for
+FCN32-FCN8 to reproduce my results.
+
 # Dataset
-## PASCAL VOC 2011
-I used [`PASCAL VOC 2011`](http://host.robots.ox.ac.uk/pascal/VOC/voc2011/index.html) as described in paper.
-In order to use it without any changes just create `data` directory in the root of this repo and put the data into it. So you need to have the following directory structure:
-```
-| ...
-| - data
-|     | - TrainVal
-|     |       |
-|     |       | - VOCdevkit
-|     |       |        |
-|     |       |        | - VOC2011
-|     |       |        |      |
-|     |       |        |      | - Annotations
-|     |       |        |      | - ImageSets
-|     |       |        |      | - JPEGImages
-|     |       |        |      | - SegmentationClass
-|     |       |        |      | - SegmentationObject
-| ...
-```
-If your dataset lies outside the repo directory than just modify `config.yml` file. Set
-`config.dataset.path` to the path of base directory with your PASCAL VOC 2011 dataset.
-For example you have your dataset inside `my_data` folder with the following structure:
-```
-| ...
-| - my_data
-|     | - TrainVal
-|     |       |
-|     |       | - VOCdevkit
-|     |       |        |
-|     |       |        | - VOC2011
-|     |       |        |      |
-|     |       |        |      | - Annotations
-|     |       |        |      | - ImageSets
-|     |       |        |      | - JPEGImages
-|     |       |        |      | - SegmentationClass
-|     |       |        |      | - SegmentationObject
-| ...
-```
-than just modify `config.yml` file in the following way:
-```
-dataset:
-    path: /path/to/my_data
-```
 
-## Custom dataset
-If you want to use custom dataset than you have the following options:
-1. Translate your dataset to the PASCAL VOC 2011 format;
-2. Add your custom dataset class to the `source/datasets` and modify the rest of the code.
-
-Choose the easiest option for you.
 
 # Installation
 Dev-env is the following:
