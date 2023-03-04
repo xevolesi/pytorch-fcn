@@ -52,6 +52,14 @@ def test_voc_datasets(dataset_impl, split, batched, use_augs, get_test_config):
     }
     config.dataset.train = impl
 
+    # Skip dataset tests if it's not possible to find root folder with
+    # data. I've also add this just to not to bother github runners in
+    # CI stages, because dataset tests take quite a lot of time to run.
+    # But locally i strongly recommend you to run tests just to be sure
+    # that your modelling will do correct things.
+    if not osp.exists(config.dataset.train["root"]):
+        pytest.skip("Skipping test . . .")
+
     # Check that error was rised correctly.
     try:
         dataset = get_object_from_dict(config.dataset.train)
