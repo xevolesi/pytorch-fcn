@@ -83,15 +83,16 @@ def create_torch_dataloaders(
 ) -> dict[str, DataLoader]:
     loaders = {}
     for subset in transforms:
-        dataset = get_object_from_dict(getattr(config.dataset, subset))
-        dataset.set_transforms(transforms[subset])
-        if not config.dataset.batched and config.training.batch_size > 1:
+        subset_dataset = getattr(config.dataset, subset)
+        if not subset_dataset.batched and config.training.batch_size > 1:
             warnings.warn(
                 f"You requested training with batch size={config.training.batch_size}, "
-                "But set config.dataset.batched to False. "
+                f"But set config.dataset.{subset}.batched to False. "
                 "I'm setting it to True for you."
             )
-            config.dataset.batched = True
+            subset_dataset.batched = True
+        dataset = get_object_from_dict(subset_dataset)
+        dataset.set_transforms(transforms[subset])
         if config.training.overfit_single_batch:
             config.training.batch_size = 1
         to_shuffle = (subset == "train") and not config.training.overfit_single_batch
