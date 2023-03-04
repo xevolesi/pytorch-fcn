@@ -7,7 +7,7 @@ def torch_hist(y_true: torch.Tensor, y_hat: torch.Tensor) -> torch.Tensor:
     Ported to PyTorch from here: https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/score.py#L9
 
     Parameters:
-        y_true: Batch of target masks with shape (1, H, W);
+        y_true: Batch of target masks with shape (N, H, W);
         y_pred: Batch of predicted masks with shape (N, C, H, W).
 
     Returns:
