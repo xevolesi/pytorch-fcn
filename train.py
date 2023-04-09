@@ -2,7 +2,8 @@ import os
 from datetime import datetime
 
 import torch
-from clearml import Task
+import wandb
+from dotenv import load_dotenv
 
 from source.utils.general import read_config, seed_everything
 from source.utils.training import train
@@ -17,14 +18,16 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 
+# Load envvars from .env.
+load_dotenv(".env")
+
+
 def main():
     config = read_config("config.yml")
-    if config.training.use_clearml:
-        task = Task.init(project_name="FCN")
-        task.connect(config)
-        cm_logger = task.get_logger()
+    if config.training.use_wandb:
+        run = wandb.init(project="FCN", config=config)
     else:
-        cm_logger = None
+        run = None
 
     # Create folders for current run.
     os.makedirs(config.logs.log_dir, exist_ok=True)
@@ -39,7 +42,7 @@ def main():
     )
 
     seed_everything(config)
-    train(config, current_run_log_path, cm_logger)
+    train(config, current_run_log_path, run)
 
 
 if __name__ == "__main__":
