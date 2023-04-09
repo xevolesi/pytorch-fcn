@@ -11,7 +11,7 @@ slightly increased relative to the one from paper. Here are the results:
 | Architecture | mIOU     |
 |--------------|----------|
 | FCN32s       | 0.62341  |
-| FCN16s       | 0.642105 |
+| FCN16s       | 0.6419   |
 | FCN8s        | 0.644392 |
 
 Actually i suppose that you can easily beat my results just by adding more augmentations
