@@ -98,7 +98,7 @@ def test_fcn16s(bilinear, final_trainable, inter_trainable, get_test_config):
 
     # Check initialization with the previous model.
     for param_name, param_tensor in fcn16s.named_parameters():
-        if (fcn32_param := fcn32s_state_dict.get(param_name, None)) is not None and (
+        if (fcn32_param := fcn32s_state_dict.get(param_name)) is not None and (
             fcn32_param.shape == param_tensor.shape
         ):
             assert torch.allclose(param_tensor, fcn32_param)
@@ -128,7 +128,7 @@ def test_fcn8s(bilinear, final_trainable, inter_trainable, get_test_config):
 
     # Check initialization with the previous model.
     for param_name, param_tensor in fcn8s.named_parameters():
-        if (fcn16_param := fcn16s_state_dict.get(param_name, None)) is not None and (
+        if (fcn16_param := fcn16s_state_dict.get(param_name)) is not None and (
             fcn16_param.shape == param_tensor.shape
         ):
             assert torch.allclose(param_tensor, fcn16_param)

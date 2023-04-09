@@ -64,7 +64,7 @@ def test_voc_datasets(dataset_impl, split, batched, use_augs, get_test_config):
     try:
         dataset = get_object_from_dict(config.dataset.train)
     except ValueError:
-        allowed_splits = _ALLOWED_SPLITS.get(dataset_impl.split(".")[-1], None)
+        allowed_splits = _ALLOWED_SPLITS.get(dataset_impl.split(".")[-1])
         if allowed_splits is not None:
             assert split not in allowed_splits
         return
