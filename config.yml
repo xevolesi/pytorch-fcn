@@ -34,12 +34,12 @@ dataset:
     batched: true
 
 model:
-  arch: fcn32
+  arch: fcn8
   n_classes: 21
 
   # In paper authors initialize intermediate upsamplings as 2D-bilinear upsampling kernel
   # and allow them to train.
-  trainable_intermediate_upsampling: false
+  trainable_intermediate_upsampling: true
   
   # But final upsampling layer was frozen.
   trainable_final_upsampling: false
@@ -56,7 +56,7 @@ training:
   # trained FCN32 model. For training FCN8 you need to provide the
   # path to trained FCN16, and so on. For training FCN32 it should
   # be null because there is no previous stride model.
-  prev_ckpt_path: null
+  prev_ckpt_path: logs/2023-04-09 19:39:32.065117/weights/fcn_fcn16_iou_0.642174243927002.pt
 
   # Whether to log predictions on fixed batch after each epoch.
   log_fixed_batch: true
@@ -90,9 +90,9 @@ training:
 # As in paper.
 optimizer:
   __class_fullname__: torch.optim.SGD
-  lr: 0.0032
+  lr: 0.00016
   weight_decay: 0.0002
-  momentum: 0.9
+  momentum: 0.99
 
 criterion:
   __class_fullname__: torch.nn.CrossEntropyLoss

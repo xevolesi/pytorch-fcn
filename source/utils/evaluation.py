@@ -18,7 +18,7 @@ def validate(
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True).long()
         with torch.autocast(
-            device_type="cuda", dtype=torch.float16, enabled=device.type != "cpu"
+            device_type="cuda", dtype=torch.bfloat16, enabled=device.type != "cpu"
         ):
             outputs = model(images)
             loss = criterion(outputs, masks)

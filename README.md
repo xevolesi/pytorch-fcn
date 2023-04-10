@@ -10,9 +10,9 @@ slightly increased relative to the one from paper. Here are the results:
 
 | Architecture | mIOU     |
 |--------------|----------|
-| FCN32s       | 0.62341  |
-| FCN16s       | 0.6419   |
-| FCN8s        | 0.6442   |
+| FCN32s       | 0.62457  |
+| FCN16s       | 0.64217  |
+| FCN8s        | 0.64389  |
 
 Actually i suppose that you can easily beat my results just by adding more augmentations
 or EMA model, so do it if you want :) In `predefined_configs` you will find configs for
