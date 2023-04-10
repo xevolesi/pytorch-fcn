@@ -2,13 +2,13 @@ import os
 import sys
 
 import addict
+import wandb
 import torch
 from loguru import logger
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
 from wandb.wandb_run import Run
 
-import wandb
 from source.datasets.voc import create_torch_dataloaders
 from source.models import FCN8s, FCN16s, FCN32s
 from source.utils.augmentations import get_albumentation_augs
