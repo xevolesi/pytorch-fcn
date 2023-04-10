@@ -56,14 +56,14 @@ training:
   # trained FCN32 model. For training FCN8 you need to provide the
   # path to trained FCN16, and so on. For training FCN32 it should
   # be null because there is no previous stride model.
-  prev_ckpt_path: logs/2023-03-04 12:42:48.744818/weights/fcn_fcn16_iou_0.6421054601669312.pt
+  prev_ckpt_path: logs/2023-04-09 19:39:32.065117/weights/fcn_fcn16_iou_0.642174243927002.pt
 
   # Whether to log predictions on fixed batch after each epoch.
   log_fixed_batch: true
 
-  # You can completely disable ClearML logging by setting this to
+  # You can completely disable Weights&Biases logging by setting this to
   # false.
-  use_clearml: true
+  use_wandb: true
 
   # Enable channel last format:
   # https://pytorch.org/tutorials/intermediate/memory_format_tutorial.html

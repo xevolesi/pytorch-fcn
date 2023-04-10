@@ -6,7 +6,7 @@ TEST_DIR := tests/
 LINT_DIR := ./
 
 lint:
-	flake8 --test-func-name-validator-regex="test_.*" ${LINT_DIR}
+	flake8 ${LINT_DIR}
 
 # Call this to format your code.
 format:
@@ -19,6 +19,10 @@ verify_format:
 
 run_tests:
 	pytest -svvv ${TEST_DIR}
+
+reset_logs:
+	rm -rf logs
+	mkdir logs
 
 # Call this before commit.
 pre_push_test: verify_format lint run_tests

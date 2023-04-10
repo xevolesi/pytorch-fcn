@@ -2,11 +2,12 @@ import os
 import sys
 
 import addict
+import wandb
 import torch
-from clearml import Logger
 from loguru import logger
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
+from wandb.wandb_run import Run
 
 from source.datasets.voc import create_torch_dataloaders
 from source.models import FCN8s, FCN16s, FCN32s
@@ -73,7 +74,7 @@ def create_model(config: addict.Dict, device: torch.device):
     return model
 
 
-def train(config: addict.Dict, run_log_path: str, cm_logger: Logger | None) -> None:
+def train(config: addict.Dict, run_log_path: str, wb_run: Run | None) -> None:
     # Ingridients.
     device = torch.device(config.training.device)
     loaders = create_torch_dataloaders(config, get_albumentation_augs(config))
@@ -132,14 +133,9 @@ def train(config: addict.Dict, run_log_path: str, cm_logger: Logger | None) -> N
             iou=metrics["iu"],
             freq_acc=metrics["freq_acc"],
         )
-        if cm_logger is not None:
-            cm_logger.report_scalar("Losses", "Train loss", training_loss.item(), epoch)
-            for metric_name, metric_value in metrics.items():
-                if metric_name == "val_loss":
-                    graph = "Losses"
-                else:
-                    graph = "Metrics"
-                cm_logger.report_scalar(graph, metric_name, metric_value, epoch)
+        if wb_run is not None:
+            metrics.update({"train_loss": training_loss.item()})
+            wb_run.log(metrics)
 
         if fixed_batch is not None:
             batch_log_path = os.path.join(
@@ -147,13 +143,8 @@ def train(config: addict.Dict, run_log_path: str, cm_logger: Logger | None) -> N
             )
             os.makedirs(batch_log_path, exist_ok=True)
             pred_path = log_predictions(model, fixed_batch, device, batch_log_path)
-            if cm_logger is not None:
-                cm_logger.report_image(
-                    "Predictions on fixed batch",
-                    f"Predictions for epoch {epoch}",
-                    iteration=epoch,
-                    local_path=pred_path,
-                )
+            if wb_run is not None:
+                wb_run.log({"fixed_batch_predictions": wandb.Image(pred_path)})
 
         # Determine if there was any improvement.
         if metrics["iu"] > best_metric:
@@ -185,7 +176,7 @@ def train_one_epoch(
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True).long()
         with torch.autocast(
-            device_type="cuda", dtype=torch.float16, enabled=device.type != "cpu"
+            device_type="cuda", dtype=torch.bfloat16, enabled=device.type != "cpu"
         ):
             outputs = model(images)
             loss = criterion(outputs, masks)
