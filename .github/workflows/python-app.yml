@@ -31,7 +31,7 @@ jobs:
         pip install -r requirements.dev.txt
     - name: Check lint with flake8
       run: |
-        flake8 --test-func-name-validator-regex="test_.*" ${LINT_DIR}
+        flake8 ${LINT_DIR}
     - name: Test with pytest
       run: |
         pytest -svvv ${TEST_DIR}
