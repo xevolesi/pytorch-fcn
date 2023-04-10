@@ -2,9 +2,9 @@ import os
 from datetime import datetime
 
 import torch
-import wandb
 from dotenv import load_dotenv
 
+import wandb
 from source.utils.general import read_config, seed_everything
 from source.utils.training import train
 
