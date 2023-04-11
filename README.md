@@ -48,14 +48,30 @@ and use it.
 
 # Installation
 You need `Python==3.10` and `PyTorch==1.13.1` with `CUDA==11.6`, but i think it's easy
-to run with other versions of PyTorch. Note that i was training the models with `NVidia Tesla V100 16GB` and `110 GB RAM`.
-I suggest to use conda for environment managing. To setup repo for your own
-experiments please run the following commands:
+to run with other versions of PyTorch. Note that i was training the models with `NVidia RTX 4090 24GB` and `128 GB RAM`.
+
+## Core requirements
+Core requirements are listed in `requirements.txt` file. You need them to be able to run training pipeline.
+The simplest way to install them is to use conda:
 ```
 conda create -n fcn python=3.10 -y
 conda activate fcn
-pip install -r requirements.txt # or you can install from requirements.dev.txt
+pip install -r requirements.txt
 ```
+But ofcourse you can use old but gold `venv` by running the following commands:
+```
+python3.10 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Optional requirements
+I've also provided optional requirements listed in `requirements.optional.txt`. This file contains [`Weights & biases`](https://wandb.ai/site)
+for logging training process. You don't need them for core functionality but i strongly recommend you to use this awesome tool. In order to use
+`wandb` you need to follow [`quickstart`](https://docs.wandb.ai/quickstart) guide. `wandb` will need your `WANDB_API_KEY` environment variable and you can set by creating `.env` file in the root of this repo (see `.env-example`).
+
+## Development requirements.
+These are for development pupropse. They consist of `flake8`, `pytest`, and so on. You can read `requirements.dev.txt` file to get more information about development requirements.
 
 # How to train
 It's quite simple:

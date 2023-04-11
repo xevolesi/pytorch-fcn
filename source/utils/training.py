@@ -1,20 +1,24 @@
 import os
 import sys
+import typing as ty
 
 import addict
 import torch
 from loguru import logger
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
-from wandb.wandb_run import Run
 
-import wandb
+try:
+    from wandb.wandb_run import Run
+except ImportError:
+    Run = ty.Any
+
 from source.datasets.voc import create_torch_dataloaders
 from source.models import FCN
 from source.utils.augmentations import get_albumentation_augs
 from source.utils.evaluation import validate
 from source.utils.general import get_cpu_state_dict, get_object_from_dict, reseed
-from source.utils.logs import log_predictions
+from source.utils.logs import log_predictions, log_predictions_wandb
 
 logger.remove()
 logger.add(
@@ -123,23 +127,24 @@ def train(config: addict.Dict, run_log_path: str, wb_run: Run | None) -> None:
             iou=metrics["iu"],
             freq_acc=metrics["freq_acc"],
         )
-        if wb_run is not None:
-            metrics.update({"train_loss": training_loss.item()})
-            wb_run.log(metrics)
 
         if fixed_batch is not None:
             batch_log_path = os.path.join(
                 run_log_path, config.logs.fixed_batch_predictions, f"epoch_{epoch+1}"
             )
             os.makedirs(batch_log_path, exist_ok=True)
-            pred_path = log_predictions(model, fixed_batch, device, batch_log_path)
+            log_predictions(model, fixed_batch, device, batch_log_path)
             if wb_run is not None:
-                wb_run.log({"fixed_batch_predictions": wandb.Image(pred_path)})
+                log_predictions_wandb(model, fixed_batch, device, wb_run)
 
         # Determine if there was any improvement.
         if metrics["iu"] > best_metric:
             best_metric = metrics["iu"]
             best_weights = get_cpu_state_dict(model)
+
+        if wb_run is not None:
+            metrics.update({"train_loss": training_loss.item(), "epoch": epoch})
+            wb_run.log(metrics)
 
     # Save best model weights.
     model_name = f"fcn_{config.model.stride}_iou_{best_metric}.pt"

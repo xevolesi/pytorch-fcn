@@ -2,9 +2,15 @@ import os
 from datetime import datetime
 
 import torch
-from dotenv import load_dotenv
 
-import wandb
+try:
+    from dotenv import load_dotenv
+
+    import wandb
+except ImportError:
+    load_dotenv = None
+    wandb = None
+
 from source.utils.general import read_config, seed_everything
 from source.utils.training import train
 
@@ -19,11 +25,14 @@ torch.backends.cudnn.allow_tf32 = True
 
 
 # Load envvars from .env.
-load_dotenv(".env")
+if load_dotenv is not None:
+    load_dotenv(".env")
 
 
 def main():
     config = read_config("config.yml")
+    if wandb is None:
+        config.training.use_wandb = False
     if config.training.use_wandb:
         run = wandb.init(project="FCN", config=config)
     else:
