@@ -23,6 +23,7 @@ run_tests:
 reset_logs:
 	rm -rf logs
 	mkdir logs
+	rm -rf wandb
 
 # Call this before commit.
 pre_push_test: verify_format lint run_tests

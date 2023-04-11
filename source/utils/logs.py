@@ -1,9 +1,19 @@
 import os
+import typing as ty
 
 import torch
+
+try:
+    from wandb.wandb_run import Run
+
+    import wandb
+except ImportError:
+    wandb = None
+    Run = ty.Any
+
 from torchvision.utils import make_grid, save_image
 
-from source.datasets.voc import VOC_COLORMAP
+from source.datasets.voc import VOC_CLASSES, VOC_COLORMAP
 
 IMAGENET_MEAN = torch.as_tensor([0.485, 0.456, 0.406])
 IMAGENET_STD = torch.as_tensor([0.229, 0.224, 0.225])
@@ -15,7 +25,7 @@ def log_predictions(
     fixed_batch: tuple[torch.Tensor, torch.Tensor],
     device: torch.device,
     folder_path: str,
-) -> str:
+) -> None:
     model.eval()
     images, labels = fixed_batch
     batch_size, _, height, width = images.shape
@@ -47,4 +57,40 @@ def log_predictions(
     grid = make_grid(log_batch, nrow=log_batch.shape[0] // 3)
     batch_path = os.path.join(folder_path, "fixed_batch.png")
     save_image(grid, batch_path)
-    return batch_path
+
+
+@torch.inference_mode()
+def log_predictions_wandb(
+    model: torch.nn.Module,
+    fixed_batch: tuple[torch.Tensor, torch.Tensor],
+    device: torch.device,
+    run: Run,
+) -> None:
+    model.eval()
+    images, labels = fixed_batch
+
+    # Obtain raw masks with logits.
+    outputs = model(images.to(device=device, non_blocking=True))
+    outputs = outputs.argmax(dim=1).detach().cpu().numpy()
+    images = images * IMAGENET_STD.view(1, -1, 1, 1) + IMAGENET_MEAN.view(1, -1, 1, 1)
+    images = images.detach().cpu().numpy().transpose(0, 2, 3, 1)
+    labels = labels.detach().cpu().numpy()
+
+    if wandb is not None:
+        table = wandb.Table(columns=["ID", "Image"])
+        for image_id, (image, label, pred) in enumerate(zip(images, labels, outputs)):
+            mask_img = wandb.Image(
+                image,
+                masks={
+                    "prediction": {
+                        "mask_data": pred,
+                        "class_labels": dict(list(enumerate(VOC_CLASSES))),
+                    },
+                    "label": {
+                        "mask_data": label,
+                        "class_labels": dict(list(enumerate(VOC_CLASSES))),
+                    },
+                },
+            )
+            table.add_data(image_id, mask_img)
+        run.log({"Table": table})
