@@ -34,7 +34,7 @@ dataset:
     batched: true
 
 model:
-  arch: fcn32
+  stride: 32
   n_classes: 21
 
   # In paper authors initialize intermediate upsamplings as 2D-bilinear upsampling kernel

@@ -5,7 +5,7 @@ import pytest
 import torch
 from torchvision.models import vgg16
 
-from source.models import FCN8s, FCN16s, FCN32s
+from source.models import FCN
 from source.models.backbones import ConvolutionizedVGG16
 from source.modules import _get_upsampling_weight
 
@@ -66,78 +66,45 @@ def test_convolutionizedvgg16():
 
 
 @pytest.mark.parametrize(
-    "bilinear, final_trainable", product([True, False], [True, False])
+    "stride, bilinear, final_trainable, inter_trainable",
+    product([32, 16, 8], [True, False], [True, False], [True, False]),
 )
-def test_fcn32s(bilinear, final_trainable, get_test_config):
+def test_fcn(stride, bilinear, final_trainable, inter_trainable, get_test_config):
     config = deepcopy(get_test_config)
-    config.model.trainable_final_upsampling = final_trainable
-    config.model.bilinear_upsampling_init = bilinear
-    fcn32s = FCN32s(config)
-    assert fcn32s.n_classes == config.model.n_classes
-    with torch.no_grad():
-        random_tensor = torch.randn((1, 3, 224, 224))
-        out = fcn32s(random_tensor)
-    assert tuple(out.shape) == (1, config.model.n_classes, 224, 224)
-
-    # Let's check initialization and trainability.
-    _check_upsamplings(fcn32s, bilinear, final_trainable, False)
-
-
-@pytest.mark.parametrize(
-    "bilinear, final_trainable, inter_trainable",
-    product([True, False], [True, False], [True, False]),
-)
-def test_fcn16s(bilinear, final_trainable, inter_trainable, get_test_config):
-    config = deepcopy(get_test_config)
+    config.model.stride = stride
     config.model.trainable_final_upsampling = final_trainable
     config.model.bilinear_upsampling_init = bilinear
     config.model.trainable_intermediate_upsampling = inter_trainable
-    fcn32s_state_dict = FCN32s(config).state_dict()
-    fcn16s = FCN16s(config)
-    fcn16s.load_weights_from_prev(fcn32s_state_dict)
+    model = FCN(config)
+
+    match config.model.stride:
+        case 32:
+            prev_strided_model = None
+        case 16:
+            cfg = deepcopy(config)
+            cfg.model.stride = 32
+            prev_strided_model = FCN(cfg).state_dict()
+        case 8:
+            cfg = deepcopy(config)
+            cfg.model.stride = 16
+            prev_strided_model = FCN(cfg).state_dict()
+    model.load_weights_from_prev(prev_strided_model)
 
     # Check initialization with the previous model.
-    for param_name, param_tensor in fcn16s.named_parameters():
-        if (fcn32_param := fcn32s_state_dict.get(param_name)) is not None and (
-            fcn32_param.shape == param_tensor.shape
-        ):
-            assert torch.allclose(param_tensor, fcn32_param)
+    if prev_strided_model is None:
+        assert model.stride == 32
+    else:
+        for param_name, param_tensor in model.named_parameters():
+            if (
+                prev_strided_param := prev_strided_model.get(param_name)
+            ) is not None and (prev_strided_param.shape == param_tensor.shape):
+                assert torch.allclose(param_tensor, prev_strided_param)
 
-    assert fcn16s.n_classes == config.model.n_classes
+    assert model.n_classes == config.model.n_classes
     with torch.no_grad():
         random_tensor = torch.randn((1, 3, 224, 224))
-        out = fcn16s(random_tensor)
+        out = model(random_tensor)
     assert tuple(out.shape) == (1, config.model.n_classes, 224, 224)
 
     # Let's check initialization and trainability.
-    _check_upsamplings(fcn16s, bilinear, final_trainable, inter_trainable)
-
-
-@pytest.mark.parametrize(
-    "bilinear, final_trainable, inter_trainable",
-    product([True, False], [True, False], [True, False]),
-)
-def test_fcn8s(bilinear, final_trainable, inter_trainable, get_test_config):
-    config = deepcopy(get_test_config)
-    config.model.trainable_final_upsampling = final_trainable
-    config.model.bilinear_upsampling_init = bilinear
-    config.model.trainable_intermediate_upsampling = inter_trainable
-    fcn16s_state_dict = FCN16s(config).state_dict()
-    fcn8s = FCN8s(config)
-    fcn8s.load_weights_from_prev(fcn16s_state_dict)
-
-    # Check initialization with the previous model.
-    for param_name, param_tensor in fcn8s.named_parameters():
-        if (fcn16_param := fcn16s_state_dict.get(param_name)) is not None and (
-            fcn16_param.shape == param_tensor.shape
-        ):
-            assert torch.allclose(param_tensor, fcn16_param)
-
-    assert fcn8s.n_classes == config.model.n_classes
-    with torch.no_grad():
-        random_tensor = torch.randn((1, 3, 224, 224))
-        out = fcn8s(random_tensor)
-    assert tuple(out.shape) == (1, config.model.n_classes, 224, 224)
-
-    # Let's check initialization and trainability.
-    _check_upsamplings(fcn8s, bilinear, final_trainable, inter_trainable)
+    _check_upsamplings(model, bilinear, final_trainable, inter_trainable)
