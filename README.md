@@ -39,7 +39,7 @@ In order to get better result you can try the following:
 # Dataset
 
 ## PASCAL VOC
-I used the same dataset as suggested here: https://github.com/shelhamer/fcn.berkeleyvision.org/blob/master/voc_layers.py
+Validation part is [this](http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar) with [this](https://github.com/shelhamer/fcn.berkeleyvision.org/blob/master/data/pascal/seg11valid.txt) image set. For training [`SBD`](http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/semantic_contours/benchmark.tgz) was used. As i understood this is exact setup as in paper.
 
 ## Custom dataset
 I suggest to translate your dataset to PASCAL VOC format and then just use this repo as is
