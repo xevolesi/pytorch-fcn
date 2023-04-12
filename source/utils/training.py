@@ -58,7 +58,7 @@ def create_param_groups(
     ]
 
 
-def create_model(config: addict.Dict, device: torch.device):
+def create_model(config: addict.Dict, device: torch.device) -> FCN:
     model = FCN(config)
     if config.training.prev_ckpt_path is not None:
         model.load_weights_from_prev(torch.load(config.training.prev_ckpt_path))
