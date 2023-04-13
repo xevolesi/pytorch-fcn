@@ -25,5 +25,13 @@ reset_logs:
 	mkdir logs
 	rm -rf wandb
 
+export_to_onnx:
+	python export_to_onnx.py \
+		--config config.yml \
+		--torch_weights logs/2023-04-12\ 08\:04\:42.694413/weights/fcn_8_iou_0.6438923478126526.pt \
+		--onnx_path ./fcn.onnx \
+		--image_size 500,500 \
+		--do_check_on_validation_set
+
 # Call this before commit.
 pre_push_test: verify_format lint run_tests
