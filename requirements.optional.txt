@@ -1,2 +1,6 @@
 wandb==0.14.2
 python-dotenv==1.0.0
+tqdm==4.65.0
+onnx==1.13.1
+onnxruntime==1.14.1
+onnx-simplifier==0.4.19

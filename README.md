@@ -66,9 +66,10 @@ pip install -r requirements.txt
 ```
 
 ## Optional requirements
-I've also provided optional requirements listed in `requirements.optional.txt`. This file contains [`Weights & biases`](https://wandb.ai/site)
-for logging training process. You don't need them for core functionality but i strongly recommend you to use this awesome tool. In order to use
-`wandb` you need to follow [`quickstart`](https://docs.wandb.ai/quickstart) guide. `wandb` will need your `WANDB_API_KEY` environment variable and you can set by creating `.env` file in the root of this repo (see `.env-example`).
+I've also provided optional requirements listed in `requirements.optional.txt`. This file contains:
+1. [`Weights & biases`](https://wandb.ai/site) for logging training process. You don't need them for core functionality,
+but i strongly recommend you to use this awesome tool. In order to use `wandb` you need to follow [`quickstart`](https://docs.wandb.ai/quickstart) guide. `wandb` will need your `WANDB_API_KEY` environment variable and you can set by creating `.env` file in the root of this repo (see `.env-example`);
+2. Packages for exporting to `ONNX` format.
 
 ## Development requirements.
 These are for development pupropse. They consist of `flake8`, `pytest`, and so on. You can read `requirements.dev.txt` file to get more information about development requirements.
@@ -79,6 +80,26 @@ It's quite simple:
 2. Run `python train.py`.
 
 It shoud works okay.
+
+# Export to ONNX
+To export the model just do:
+```
+python export_to_onnx.py \
+		--config %path to config.yml% \
+		--torch_weights %path to PyTorch weights% \
+		--onnx_path %path tot ONNX file% \
+		--image_size %Image height and image width separated by single comma% \
+		--do_check_on_validation_set
+```
+Example of command to export `FCN8`:
+```
+python export_to_onnx.py \
+		--config config.yml \
+		--torch_weights logs/2023-04-12\ 08\:04\:42.694413/weights/fcn_8_iou_0.6438923478126526.pt \
+		--onnx_path ./fcn.onnx \
+		--image_size 500,500 \
+		--do_check_on_validation_set
+```
 
 # How to develop
 Clone this repo and install development dependencies via `pip install -r requirements.dev.txt`. `Makefile` consists of the following recipies:
