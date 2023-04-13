@@ -15,8 +15,6 @@ from source.models import FCN
 from source.utils.augmentations import get_albumentation_augs
 from source.utils.general import get_object_from_dict, read_config
 
-IMAGENET_MEAN = (0.485, 0.456, 0.406)
-IMAGENET_STD = (0.229, 0.224, 0.225)
 ATOL = 1e-4
 
 
