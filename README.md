@@ -81,6 +81,25 @@ It's quite simple:
 
 It shoud works okay.
 
+# Predict on image
+To get predictions on single image please use `predict.py` script. To run this script just do:
+```
+python predict.py \
+		--image %path to image% \
+		--config %path to config% \
+		--weights %path to weights% \
+		--image_size %Image height and image width separated by single comma%
+```
+
+Example:
+```
+python predict.py \
+		--image data/VOCdevkit/VOC2012/JPEGImages/2007_000363.jpg \
+		--config config.yml \
+		--weights weights/fcn_sim..onnx \
+		--image_size 500,500
+```
+
 # Export to ONNX
 To export the model just do:
 ```
