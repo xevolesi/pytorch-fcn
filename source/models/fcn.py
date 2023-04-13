@@ -1,4 +1,3 @@
-import addict
 import torch
 from torch import nn
 from torchvision.models import VGG16_Weights, vgg16
@@ -9,16 +8,27 @@ from .backbones import ConvolutionizedVGG16
 
 
 class FCN(nn.Module):
-    _offsets: dict[str, tuple[int, int, int]] = {
+    _offsets: dict[int, tuple[int, int, int]] = {
         32: (0, 0, 19),
         16: (0, 5, 27),
         8: (9, 5, 31),
     }
 
-    def __init__(self, config: addict.Dict) -> None:
+    def __init__(
+        self,
+        stride: int,
+        n_classes: int,
+        trainable_intermediate_upsampling: bool = False,
+        trainable_final_upsampling: bool = False,
+        bilinear_upsampling_init: bool = True,
+    ) -> None:
         super().__init__()
-        self.n_classes = config.model.n_classes
-        self.stride = config.model.stride
+        if stride not in self._offsets:
+            raise ValueError(
+                f"Expected `stride` to be one of (8, 16, 32), but got {stride}"
+            )
+        self.n_classes = n_classes
+        self.stride = stride
         self.vgg = ConvolutionizedVGG16()
         self.vgg.copy_weights_from_torchvision(vgg16(weights=VGG16_Weights.DEFAULT))
 
@@ -32,8 +42,8 @@ class FCN(nn.Module):
                 kernel_size=4,
                 stride=2,
                 bias=False,
-                bilinear=config.model.bilinear_upsampling_init,
-                trainable=config.model.trainable_intermediate_upsampling,
+                bilinear=bilinear_upsampling_init,
+                trainable=trainable_intermediate_upsampling,
             )
             self.score_stride_16 = conv_layer(512, self.n_classes, 1)
 
@@ -46,8 +56,8 @@ class FCN(nn.Module):
                 kernel_size=4,
                 stride=2,
                 bias=False,
-                bilinear=config.model.bilinear_upsampling_init,
-                trainable=config.model.trainable_intermediate_upsampling,
+                bilinear=bilinear_upsampling_init,
+                trainable=trainable_intermediate_upsampling,
             )
             self.score_stride_8 = conv_layer(256, self.n_classes, 1)
 
@@ -57,8 +67,8 @@ class FCN(nn.Module):
             kernel_size=self.stride * 2,
             stride=self.stride,
             bias=False,
-            bilinear=config.model.bilinear_upsampling_init,
-            trainable=config.model.trainable_final_upsampling,
+            bilinear=bilinear_upsampling_init,
+            trainable=trainable_final_upsampling,
         )
 
     def forward(self, tensor: torch.Tensor) -> torch.Tensor:

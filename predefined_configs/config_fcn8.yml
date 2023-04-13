@@ -34,6 +34,8 @@ dataset:
     batched: true
 
 model:
+  __class_fullname__: source.models.fcn.FCN
+
   stride: 8
   n_classes: 21
 
@@ -56,7 +58,7 @@ training:
   # trained FCN32 model. For training FCN8 you need to provide the
   # path to trained FCN16, and so on. For training FCN32 it should
   # be null because there is no previous stride model.
-  prev_ckpt_path: logs/2023-04-11 09:25:45.193482/weights/fcn_16_iou_0.642174243927002.pt
+  prev_ckpt_path: logs/2023-04-13 19:22:27.386887/weights/fcn_16_iou_0.642174243927002.pt
 
   # Whether to log predictions on fixed batch after each epoch.
   log_fixed_batch: true
