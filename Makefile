@@ -33,5 +33,12 @@ export_to_onnx:
 		--image_size 500,500 \
 		--do_check_on_validation_set
 
+predict:
+	python predict.py \
+		--image data/VOCdevkit/VOC2012/JPEGImages/2007_000363.jpg \
+		--config config.yml \
+		--weights weights/fcn_sim..onnx \
+		--image_size 500,500
+
 # Call this before commit.
 pre_push_test: verify_format lint run_tests
