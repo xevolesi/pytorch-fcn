@@ -35,7 +35,7 @@ dataset:
 
 model:
   __class_fullname__: source.models.fcn.TimmFCN
-  backbone_name: densenet121
+  backbone_name: tf_efficientnetv2_s_in21ft1k
   in_chans: 3
   pretrained: true
   stride: 8
@@ -50,7 +50,7 @@ training:
   # trained FCN32 model. For training FCN8 you need to provide the
   # path to trained FCN16, and so on. For training FCN32 it should
   # be null because there is no previous stride model.
-  prev_ckpt_path: logs/2023-04-14 08:20:22.131644/weights/fcn_16_iou_0.6961778402328491.pt
+  prev_ckpt_path: logs/2023-04-14 12:04:29.206281/weights/fcn_16_iou_0.7548561692237854.pt
 
   # Whether to log predictions on fixed batch after each epoch.
   log_fixed_batch: true
@@ -78,7 +78,7 @@ training:
   seed: 39
   device: cuda:0
   epochs: 30
-  batch_size: 20
+  batch_size: 40
   dataloader_num_workers: 6
 
 # As in paper.
