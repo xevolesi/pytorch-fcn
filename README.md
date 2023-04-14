@@ -26,7 +26,9 @@ from it. Please see `predefined_configs/config_fcn32_densenet121.yml` for exampl
 | Architecture |     Backbone    |Additional FCN head|mIOU     | 			PyTorch checkpoints			       |
 |--------------|-----------------|-------------------|---------|-----------------------------------------------|
 | FCN32s       |   densenet121   |       False       |0.65869  |[link](https://disk.yandex.ru/d/zYuLFl6W5n1Miw)|
-| FCN32s       |   densenet121   |		 True        |0.64217  |[link](https://disk.yandex.ru/d/_bGvmVgpYVdWRg)|
+| FCN32s       |   densenet121   |		 True        |0.66486  |[link](https://disk.yandex.ru/d/_bGvmVgpYVdWRg)|
+| FCN16s       |   densenet121   |		 True        |0.69617  |[link](https://disk.yandex.ru/d/JZ4Sz2TeftNGsg)|
+| FCN8s        |   densenet121   |		 True        |0.69778  |[link](https://disk.yandex.ru/d/31JyBgygo0EzHA)|
 
 ## Fixed batch examples
 
@@ -38,6 +40,15 @@ from it. Please see `predefined_configs/config_fcn32_densenet121.yml` for exampl
 
 ### FCN8s
 ![FCN32s predictions for fixed batch](./assets/fcn8_fixed_batch.png)
+
+### FCN32s-densenet121
+![FCN32s-densenet121 predictions for fixed batch](./assets/fcn32_densenet121_fixed_batch.png)
+
+### FCN16s-densenet121
+![FCN16s-densenet121 predictions for fixed batch](./assets/fcn16_densenet121_fixed_batch.png)
+
+### FCN8s-densenet121
+![FCN8s-densenet121 predictions for fixed batch](./assets/fcn8_densenet121_fixed_batch.png)
 
 # Dataset
 

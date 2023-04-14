@@ -1,0 +1,160 @@
+logs:
+  log_dir: ./logs
+  weights_folder: weights
+  fixed_batch_predictions: batch_preds
+
+dataset:
+  val:
+    __class_fullname__: source.datasets.voc.VOCSegmentationDataset
+    root: data
+    split: seg11valid
+
+    # Load all images and masks as numpy arrays directly in your RAM.
+    # So, be carefull because it will take a lot of RAM!
+    cache_images: true
+
+    # Authors trained FCN with a batch size = 1, so there was no need
+    # to resize them or pad together to form a batch. If you want to
+    # train with batches set this flag to true to apply auto-padding
+    # to square size.
+    batched: true
+  train:
+    __class_fullname__: source.datasets.voc.SBDDSegmentationDataset
+    root: data
+    split: train
+
+    # Load all images and masks as numpy arrays directly in your RAM.
+    # So, be carefull because it will take a lot of RAM!
+    cache_images: true
+
+    # Authors trained FCN with a batch size = 1, so there was no need
+    # to resize them or pad together to form a batch. If you want to
+    # train with batches set this flag to true to apply auto-padding
+    # to square size.
+    batched: true
+
+model:
+  __class_fullname__: source.models.fcn.TimmFCN
+  backbone_name: densenet121
+  in_chans: 3
+  pretrained: true
+  stride: 16
+  n_classes: 21
+
+training:
+
+  # When you want to train FCN16 or FCN8 you need to initialize them
+  # with the weights obtained from previous stride model. So, use this
+  # field to provide path to previous stride model weights.
+  # For example, for training FCN16 you need to provide the path to
+  # trained FCN32 model. For training FCN8 you need to provide the
+  # path to trained FCN16, and so on. For training FCN32 it should
+  # be null because there is no previous stride model.
+  prev_ckpt_path: logs/2023-04-14 06:37:33.095555/weights/fcn_32_iou_0.6648618578910828.pt
+
+  # Whether to log predictions on fixed batch after each epoch.
+  log_fixed_batch: true
+
+  # You can completely disable Weights&Biases logging by setting this to
+  # false.
+  use_wandb: true
+
+  # Enable channel last format:
+  # https://pytorch.org/tutorials/intermediate/memory_format_tutorial.html
+  # On my V100 16GB FCN32s with VGG16 backbone trains 1.5x faster
+  # using channels last.
+  channels_last: true
+
+  # Gradient accumulation step size.
+  grad_acc_iters: 1
+
+  # Whether to overfit model on single random image.
+  # Setting it to true will end up with the 100-epochs training
+  # procedure with single random image for training and validation.
+  overfit_single_batch: false
+
+  # I'm pretty sure you don't need any comments about these hyper-
+  # parameters :)
+  seed: 39
+  device: cuda:0
+  epochs: 30
+  batch_size: 20
+  dataloader_num_workers: 6
+
+# As in paper.
+optimizer:
+  __class_fullname__: torch.optim.SGD
+  lr: 0.00032
+  weight_decay: 0.0002
+  momentum: 0.99
+
+criterion:
+  __class_fullname__: torch.nn.CrossEntropyLoss
+
+  # This is needed because difficult or border pixels are marked
+  # with 255. Inspired by paper's authors here:
+  # https://github.com/shelhamer/fcn.berkeleyvision.org/blob/1305c7378a9f0ab44b2c936f4d60e4687e3d8743/voc-fcn32s/train.prototxt#L527
+  ignore_index: 255
+
+augmentations:
+  train:
+    transform:
+      __class_fullname__: Compose
+      transforms:
+        - __class_fullname__: albumentations.augmentations.geometric.resize.Resize
+          height: 500
+          width: 500
+          always_apply: true
+
+        # Geomatric transforms.
+        - __class_fullname__: albumentations.augmentations.geometric.transforms.ShiftScaleRotate
+          
+          # 32 pixel jittering as in paper: 0.064 * 500 = 32.
+          shift_limit: 0.064
+          rotate_limit: 5
+          scale_limit: 0
+        
+        # Mirroring as in paper.
+        - __class_fullname__: albumentations.augmentations.geometric.transforms.HorizontalFlip
+
+        # To PyTorch tensors.
+        - __class_fullname__: Normalize
+          always_apply: true
+          max_pixel_value: 255.0
+          mean:
+            - 0.485
+            - 0.456
+            - 0.406
+          std:
+            - 0.229
+            - 0.224
+            - 0.225
+        - __class_fullname__: ToTensorV2
+          transpose_mask: true
+          always_apply: true
+      additional_targets: {'image': 'image', 'mask': 'mask'}
+  val:
+    transform:
+      __class_fullname__: Compose
+      transforms:
+        - __class_fullname__: albumentations.augmentations.geometric.resize.Resize
+          height: 500
+          width: 500
+          always_apply: true
+
+        # To PyTorch tensors.
+        - __class_fullname__: Normalize
+          always_apply: true
+          max_pixel_value: 255.0
+          mean:
+            - 0.485
+            - 0.456
+            - 0.406
+          std:
+            - 0.229
+            - 0.224
+            - 0.225
+        - __class_fullname__: ToTensorV2
+          transpose_mask: true
+          always_apply: true
+      additional_targets: {'image': 'image', 'mask': 'mask'}
