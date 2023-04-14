@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torchvision.models import VGG16_Weights, vgg16
 
-from source.modules import conv_layer, upsampling_layer
+from source.modules import FCNHead, conv_layer, upsampling_layer
 
 from .backbones import ConvolutionizedVGG16, TimmBackbone
 
@@ -129,23 +129,13 @@ class TimmFCN(nn.Module):
 
         self.score_stride_8 = nn.Identity()
         self.score_stride_16 = nn.Identity()
-        self.score_stride_32 = conv_layer(
-            self.backbone.out_channels[-1],
-            self.n_classes,
-            kernel_size=1,
-        )
+        self.score_stride_32 = FCNHead(self.backbone.out_channels[-1], self.n_classes)
         if self.stride < 32:
-            self.score_stride_16 = conv_layer(
-                self.backbone.out_channels[-2],
-                self.n_classes,
-                kernel_size=1,
+            self.score_stride_16 = FCNHead(
+                self.backbone.out_channels[-2], self.n_classes
             )
         if self.stride < 16:
-            self.score_stride_8 = conv_layer(
-                self.backbone.out_channels[-3],
-                self.n_classes,
-                kernel_size=1,
-            )
+            self.score_stride_8 = FCNHead(self.backbone.out_channels[-3], self.n_classes)
 
     def forward(self, tensor):
         *_, height, width = tensor.shape
@@ -166,3 +156,12 @@ class TimmFCN(nn.Module):
         return nn.functional.interpolate(
             stride_32, size=(height, width), mode="bilinear", align_corners=False
         )
+
+    def load_weights_from_prev(self, prev_ckpt: dict[str, torch.Tensor]) -> None:
+        if prev_ckpt is None:
+            return
+        for param_name, param_tensor in self.named_parameters():
+            if (prev_param := prev_ckpt.get(param_name)) is not None and (
+                prev_param.shape == param_tensor.shape
+            ):
+                param_tensor.data.copy_(prev_param.data)
