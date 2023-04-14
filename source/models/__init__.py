@@ -1,3 +1,3 @@
-from .fcn import FCN
+from .fcn import FCN, TimmFCN
 
-__all__ = ["FCN"]
+__all__ = ["FCN", "TimmFCN"]

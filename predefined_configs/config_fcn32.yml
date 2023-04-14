@@ -34,6 +34,8 @@ dataset:
     batched: true
 
 model:
+  __class_fullname__: source.models.fcn.FCN
+  
   stride: 32
   n_classes: 21
 

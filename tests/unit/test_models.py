@@ -5,8 +5,8 @@ import pytest
 import torch
 from torchvision.models import vgg16
 
-from source.models import FCN
-from source.models.backbones import ConvolutionizedVGG16
+from source.models import FCN, TimmFCN
+from source.models.backbones import ConvolutionizedVGG16, TimmBackbone
 from source.modules import _get_upsampling_weight
 
 
@@ -65,29 +65,44 @@ def test_convolutionizedvgg16():
             assert torch.allclose(src_param.view(conved_param.shape), conved_param)
 
 
+def test_timm_backbone(get_test_config):
+    backbone = TimmBackbone(
+        get_test_config.model.backbone_name,
+        get_test_config.model.in_chans,
+        pretrained=False,
+    )
+    tensor = torch.randn((1, 3, 500, 500))
+    with torch.no_grad():
+        outputs = backbone(tensor)
+        assert isinstance(outputs, list)
+        assert len(outputs) >= 3
+
+
 @pytest.mark.parametrize(
     "stride, bilinear, final_trainable, inter_trainable",
     product([32, 16, 8], [True, False], [True, False], [True, False]),
 )
 def test_fcn(stride, bilinear, final_trainable, inter_trainable, get_test_config):
-    config = deepcopy(get_test_config)
-    config.model.stride = stride
-    config.model.trainable_final_upsampling = final_trainable
-    config.model.bilinear_upsampling_init = bilinear
-    config.model.trainable_intermediate_upsampling = inter_trainable
-    model = FCN(config)
+    paper_model_cfg = dict(
+        stride=stride,
+        trainable_final_upsampling=final_trainable,
+        bilinear_upsampling_init=bilinear,
+        trainable_intermediate_upsampling=inter_trainable,
+        n_classes=get_test_config.model.n_classes,
+    )
+    model = FCN(**paper_model_cfg)
 
-    match config.model.stride:
+    match paper_model_cfg["stride"]:
         case 32:
             prev_strided_model = None
         case 16:
-            cfg = deepcopy(config)
-            cfg.model.stride = 32
-            prev_strided_model = FCN(cfg).state_dict()
+            cfg = deepcopy(paper_model_cfg)
+            cfg["stride"] = 32
+            prev_strided_model = FCN(**cfg).state_dict()
         case 8:
-            cfg = deepcopy(config)
-            cfg.model.stride = 16
-            prev_strided_model = FCN(cfg).state_dict()
+            cfg = deepcopy(paper_model_cfg)
+            cfg["stride"] = 16
+            prev_strided_model = FCN(**cfg).state_dict()
     model.load_weights_from_prev(prev_strided_model)
 
     # Check initialization with the previous model.
@@ -100,11 +115,59 @@ def test_fcn(stride, bilinear, final_trainable, inter_trainable, get_test_config
             ) is not None and (prev_strided_param.shape == param_tensor.shape):
                 assert torch.allclose(param_tensor, prev_strided_param)
 
-    assert model.n_classes == config.model.n_classes
+    assert model.n_classes == get_test_config.model.n_classes
     with torch.no_grad():
         random_tensor = torch.randn((1, 3, 224, 224))
         out = model(random_tensor)
-    assert tuple(out.shape) == (1, config.model.n_classes, 224, 224)
+    assert tuple(out.shape) == (1, get_test_config.model.n_classes, 224, 224)
 
     # Let's check initialization and trainability.
     _check_upsamplings(model, bilinear, final_trainable, inter_trainable)
+
+
+@pytest.mark.parametrize(
+    "stride, backbone_name, in_chans",
+    product(
+        [32, 16, 8],
+        ["densenet121", "ecaresnext50t_32x4d", "tf_efficientnetv2_s"],
+        [3, 6, 9],
+    ),
+)
+def test_timm_fcn(stride, backbone_name, in_chans, get_test_config):
+    timm_cfg = dict(
+        stride=stride,
+        backbone_name=backbone_name,
+        pretrained=False,
+        in_chans=in_chans,
+        n_classes=get_test_config.model.n_classes,
+    )
+    model = TimmFCN(**timm_cfg)
+
+    match timm_cfg["stride"]:
+        case 32:
+            prev_strided_model = None
+        case 16:
+            cfg = deepcopy(timm_cfg)
+            cfg["stride"] = 32
+            prev_strided_model = TimmFCN(**cfg).state_dict()
+        case 8:
+            cfg = deepcopy(timm_cfg)
+            cfg["stride"] = 16
+            prev_strided_model = TimmFCN(**cfg).state_dict()
+    model.load_weights_from_prev(prev_strided_model)
+
+    # Check initialization with the previous model.
+    if prev_strided_model is None:
+        assert model.stride == 32
+    else:
+        for param_name, param_tensor in model.named_parameters():
+            if (
+                prev_strided_param := prev_strided_model.get(param_name)
+            ) is not None and (prev_strided_param.shape == param_tensor.shape):
+                assert torch.allclose(param_tensor, prev_strided_param)
+
+    assert model.n_classes == get_test_config.model.n_classes
+    with torch.no_grad():
+        random_tensor = torch.randn((1, timm_cfg["in_chans"], 224, 224))
+        out = model(random_tensor)
+    assert tuple(out.shape) == (1, get_test_config.model.n_classes, 224, 224)

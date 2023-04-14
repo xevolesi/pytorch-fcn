@@ -5,6 +5,7 @@ import typing as ty
 import addict
 import torch
 from loguru import logger
+from torch.cuda.amp.autocast_mode import autocast
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
 
@@ -59,7 +60,7 @@ def create_param_groups(
 
 
 def create_model(config: addict.Dict, device: torch.device) -> FCN:
-    model = FCN(config)
+    model = get_object_from_dict(config.model)
     if config.training.prev_ckpt_path is not None:
         model.load_weights_from_prev(torch.load(config.training.prev_ckpt_path))
     model = model.to(device)
@@ -69,7 +70,7 @@ def create_model(config: addict.Dict, device: torch.device) -> FCN:
 
 
 def train(config: addict.Dict, run_log_path: str, wb_run: Run | None) -> None:
-    # Ingridients.
+    # Ingredients.
     device = torch.device(config.training.device)
     loaders = create_torch_dataloaders(config, get_albumentation_augs(config))
     model = create_model(config, device)
@@ -80,7 +81,13 @@ def train(config: addict.Dict, run_log_path: str, wb_run: Run | None) -> None:
         ),
     )
     criterion = get_object_from_dict(config.criterion)
-    scaler = GradScaler(enabled=device.type != "cpu")
+    scaler = GradScaler(enabled=torch.cuda.is_available())
+
+    # torch.nn.functional.interpolate is not implemented for
+    # torch.bfloat16, so we need to switch back to torch.float16
+    # for TimmFCN model.
+    amp_dtype = torch.bfloat16 if isinstance(model, FCN) else torch.float16
+    autocast_ctx = autocast(enabled=torch.cuda.is_available(), dtype=amp_dtype)
 
     fixed_batch = None
     if config.training.log_fixed_batch:
@@ -102,10 +109,11 @@ def train(config: addict.Dict, run_log_path: str, wb_run: Run | None) -> None:
             optimizer,
             criterion,
             scaler,
+            autocast_ctx,
             device,
             config.training.grad_acc_iters,
         )
-        metrics = validate(model, loaders["val"], criterion, device)
+        metrics = validate(model, loaders["val"], criterion, autocast_ctx, device)
         metrics = {name: tensor.item() for name, tensor in metrics.items()}
 
         logger.info(
@@ -158,6 +166,7 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     criterion: torch.nn.Module,
     scaler: GradScaler,
+    autocast_ctx: autocast,
     device: torch.device,
     grad_acc_iters: int = 1,
 ) -> torch.Tensor:
@@ -170,9 +179,7 @@ def train_one_epoch(
     for images, masks in loader:
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True).long()
-        with torch.autocast(
-            device_type="cuda", dtype=torch.bfloat16, enabled=device.type != "cpu"
-        ):
+        with autocast_ctx:
             outputs = model(images)
             loss = criterion(outputs, masks)
         scaler.scale(loss).backward()

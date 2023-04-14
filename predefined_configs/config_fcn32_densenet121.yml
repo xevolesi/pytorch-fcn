@@ -38,7 +38,7 @@ model:
   backbone_name: densenet121
   in_chans: 3
   pretrained: true
-  stride: 16
+  stride: 32
   n_classes: 21
 
 training:
@@ -50,7 +50,7 @@ training:
   # trained FCN32 model. For training FCN8 you need to provide the
   # path to trained FCN16, and so on. For training FCN32 it should
   # be null because there is no previous stride model.
-  prev_ckpt_path: logs/2023-04-14 06:37:33.095555/weights/fcn_32_iou_0.6648618578910828.pt
+  prev_ckpt_path: null
 
   # Whether to log predictions on fixed batch after each epoch.
   log_fixed_batch: true
@@ -84,9 +84,9 @@ training:
 # As in paper.
 optimizer:
   __class_fullname__: torch.optim.SGD
-  lr: 0.00032
+  lr: 0.0032
   weight_decay: 0.0002
-  momentum: 0.99
+  momentum: 0.9
 
 criterion:
   __class_fullname__: torch.nn.CrossEntropyLoss

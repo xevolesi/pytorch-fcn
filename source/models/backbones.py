@@ -1,3 +1,4 @@
+import timm
 import torch
 from torch import nn
 
@@ -116,3 +117,28 @@ class ConvolutionizedVGG16(nn.Module):
             source = vgg.classifier[source_index]
             target.weight.data.copy_(source.weight.data.view(target.weight.shape))
             target.bias.data.copy_(source.bias.data.view(target.bias.shape))
+
+
+class TimmBackbone(nn.Module):
+    def __init__(
+        self, backbone_name: str, in_chans: int, pretrained: bool = False
+    ) -> None:
+        super().__init__()
+        encoder_arguments = dict(
+            in_chans=in_chans,
+            features_only=True,
+            output_stride=32,
+            pretrained=pretrained,
+            out_indices=tuple(range(5)),
+        )
+
+        # Not all models support output stride argument,
+        # drop it by default.
+        if encoder_arguments["output_stride"] == 32:
+            encoder_arguments.pop("output_stride")
+
+        self.backbone = timm.create_model(backbone_name, **encoder_arguments)
+        self.out_channels = self.backbone.feature_info.channels()
+
+    def forward(self, tensor: torch.Tensor) -> list[torch.Tensor]:
+        return self.backbone(tensor)

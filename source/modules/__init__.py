@@ -70,3 +70,19 @@ def upsampling_layer(
         if bias:
             layer.bias.requires_grad = False
     return layer
+
+
+class FCNHead(nn.Sequential):
+    """Borrowed from here: https://github.com/pytorch/vision/blob/29757104250dd088386fef1ec3d70ed0b0c1be8a/torchvision/models/segmentation/fcn.py#L36"""
+
+    def __init__(self, in_channels: int, channels: int) -> None:
+        inter_channels = in_channels // 4
+        layers = [
+            nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(inter_channels),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Conv2d(inter_channels, channels, 1),
+        ]
+
+        super().__init__(*layers)
