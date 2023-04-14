@@ -41,6 +41,15 @@ from it. Please see `predefined_configs/config_fcn32_densenet121.yml` for exampl
 ### FCN8s
 ![FCN32s predictions for fixed batch](./assets/fcn8_fixed_batch.png)
 
+### FCN32s-densenet121
+![FCN32s-densenet121 predictions for fixed batch](./assets/fcn32_densenet121_fixed_batch.png)
+
+### FCN16s-densenet121
+![FCN16s-densenet121 predictions for fixed batch](./assets/fcn16_densenet121_fixed_batch.png)
+
+### FCN8s-densenet121
+![FCN8s-densenet121 predictions for fixed batch](./assets/fcn8_densenet121_fixed_batch.png)
+
 # Dataset
 
 ## PASCAL VOC
