@@ -4,7 +4,7 @@ from torchvision.models import VGG16_Weights, vgg16
 
 from source.modules import conv_layer, upsampling_layer
 
-from .backbones import ConvolutionizedVGG16
+from .backbones import ConvolutionizedVGG16, TimmBackbone
 
 
 class FCN(nn.Module):
@@ -111,3 +111,58 @@ class FCN(nn.Module):
                 prev_param.shape == param_tensor.shape
             ):
                 param_tensor.data.copy_(prev_param.data)
+
+
+class TimmFCN(nn.Module):
+    def __init__(
+        self,
+        backbone_name: str,
+        pretrained: bool,
+        in_chans: int,
+        stride: int,
+        n_classes: int,
+    ) -> None:
+        super().__init__()
+        self.backbone = TimmBackbone(backbone_name, in_chans, pretrained)
+        self.n_classes = n_classes
+        self.stride = stride
+
+        self.score_stride_8 = nn.Identity()
+        self.score_stride_16 = nn.Identity()
+        self.score_stride_32 = conv_layer(
+            self.backbone.out_channels[-1],
+            self.n_classes,
+            kernel_size=1,
+        )
+        if self.stride < 32:
+            self.score_stride_16 = conv_layer(
+                self.backbone.out_channels[-2],
+                self.n_classes,
+                kernel_size=1,
+            )
+        if self.stride < 16:
+            self.score_stride_8 = conv_layer(
+                self.backbone.out_channels[-3],
+                self.n_classes,
+                kernel_size=1,
+            )
+
+    def forward(self, tensor):
+        *_, height, width = tensor.shape
+        features = self.backbone(tensor)
+        stride_32 = self.score_stride_32(features[-1])
+        if self.stride < 32:
+            stride_16 = self.score_stride_16(features[-2])
+            stride_32 = nn.functional.interpolate(
+                stride_32, stride_16.shape[-2:], mode="bilinear", align_corners=False
+            )
+            stride_32 += stride_16
+        if self.stride < 16:
+            stride_8 = self.score_stride_8(features[-3])
+            stride_32 = nn.functional.interpolate(
+                stride_32, stride_8.shape[-2:], mode="bilinear", align_corners=False
+            )
+            stride_32 += stride_8
+        return nn.functional.interpolate(
+            stride_32, size=(height, width), mode="bilinear", align_corners=False
+        )
