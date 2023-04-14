@@ -29,6 +29,9 @@ from it. Please see `predefined_configs/config_fcn32_densenet121.yml` for exampl
 | FCN32s       |   densenet121   |		 True        |0.66486  |[link](https://disk.yandex.ru/d/_bGvmVgpYVdWRg)|
 | FCN16s       |   densenet121   |		 True        |0.69617  |[link](https://disk.yandex.ru/d/JZ4Sz2TeftNGsg)|
 | FCN8s        |   densenet121   |		 True        |0.69778  |[link](https://disk.yandex.ru/d/31JyBgygo0EzHA)|
+| FCN32s       |   tf_efficientnetv2_s_in21ft1k   |		 True        |0.73326 |[link](https://disk.yandex.ru/d/TUJhLh6A7hFkQw)|
+| FCN16s       |   tf_efficientnetv2_s_in21ft1k   |		 True        |0.75485 |[link](https://disk.yandex.ru/d/K-NSUnGoDW5xfQ)|
+| FCN8s        |   tf_efficientnetv2_s_in21ft1k   |		 True        |0.75771 |[link](https://disk.yandex.ru/d/z28LyNnLICmPuQ)|
 
 ## Fixed batch examples
 
@@ -49,6 +52,15 @@ from it. Please see `predefined_configs/config_fcn32_densenet121.yml` for exampl
 
 ### FCN8s-densenet121
 ![FCN8s-densenet121 predictions for fixed batch](./assets/fcn8_densenet121_fixed_batch.png)
+
+### FCN32s-efficientnetv2_s
+![FCN32s-efficientnetv2_s predictions for fixed batch](./assets/fcn32_efficientnetv2_s_fixed_batch.png)
+
+### FCN16s-efficientnetv2_s
+![FCN16s-efficientnetv2_s predictions for fixed batch](./assets/fcn16_efficientnetv2_s_fixed_batch.png)
+
+### FCN8s-efficientnetv2_s
+![FCN8s-efficientnetv2_s predictions for fixed batch](./assets/fcn8_efficientnetv2_s_fixed_batch.png)
 
 # Dataset
 
