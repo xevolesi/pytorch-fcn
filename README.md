@@ -3,27 +3,30 @@ Implementation of [`Fully Convolutional Networks for Semantic Segmentation`](htt
 
 # Results
 
+## Paper version
 I tried to reproduce the results from the journal version of paper, but I did not succeed completely. I think this is because I used vgg16 from torchvision as a backbone and trained
 with a mini-batches without gradient accumulation (although, in theory, this should be 
 almost the same). Also, because of i trained with mini-batches, the learning rate is 
 slightly increased relative to the one from paper. Here are the results:
 
-| Architecture | mIOU     |
-|--------------|----------|
-| FCN32s       | 0.62457  |
-| FCN16s       | 0.64217  |
-| FCN8s        | 0.64389  |
+| Architecture | mIOU     | 			PyTorch checkpoints			      |
+|--------------|----------|-----------------------------------------------|
+| FCN32s       | 0.62457  |[link](https://disk.yandex.ru/d/Rz5hLoJTw9H0ag)|
+| FCN16s       | 0.64217  |[link](https://disk.yandex.ru/d/4o5p-XA3XoMdAQ)|
+| FCN8s        | 0.64389  |[link](https://disk.yandex.ru/d/13dK-dOx6WllNw)|
 
 Actually i suppose that you can easily beat my results just by adding more augmentations
 or EMA model, so do it if you want :) In `predefined_configs` you will find configs for
 FCN32-FCN8 to reproduce my results.
-In order to get better result you can try the following:
-1. Add more standard data augmentation;
-2. Add advanced data augmentation techniques like CutMix, MixUp, Mosaic (YOLO variant) and so on;
-3. Replace transpose convolution with `torch.nn.Upsample(mode='nearest')` followed by 1x1 `Conv2d`;
-4. Do full mixing from different upsampling paths of FCN8;
-5. Use backbones from the best [`timm repo`](https://github.com/huggingface/pytorch-image-models) or at least torchvision vgg16_bn;
-6. ...
+
+## Integration with timm package
+I've added integration with awesome [`timm repo`](https://github.com/huggingface/pytorch-image-models) so now you can use backbones
+from it. Please see `predefined_configs/config_fcn32_densenet121.yml` for example of usage `densenet121` backbone from `timm`. Some results:
+
+| Architecture |     Backbone    |Additional FCN head|mIOU     | 			PyTorch checkpoints			       |
+|--------------|-----------------|-------------------|---------|-----------------------------------------------|
+| FCN32s       |   densenet121   |       False       |0.65869  |[link](https://disk.yandex.ru/d/zYuLFl6W5n1Miw)|
+| FCN32s       |   densenet121   |		 True        |0.64217  |[link](https://disk.yandex.ru/d/_bGvmVgpYVdWRg)|
 
 ## Fixed batch examples
 
