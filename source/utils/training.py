@@ -82,6 +82,10 @@ def train(config: addict.Dict, run_log_path: str, wb_run: Run | None) -> None:
     )
     criterion = get_object_from_dict(config.criterion)
     scaler = GradScaler(enabled=torch.cuda.is_available())
+
+    # torch.nn.functional.interpolate is not implemented for
+    # torch.bfloat16, so we need to switch back to torch.float16
+    # for TimmFCN model.
     amp_dtype = torch.bfloat16 if isinstance(model, FCN) else torch.float16
     autocast_ctx = autocast(enabled=torch.cuda.is_available(), dtype=amp_dtype)
 
