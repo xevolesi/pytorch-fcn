@@ -25,13 +25,13 @@ torch.backends.cudnn.allow_tf32 = True
 
 
 # Load envvars from .env.
-if load_dotenv is not None:
+if load_dotenv is not None and os.path.exists(".env"):
     load_dotenv(".env")
 
 
 def main():
     config = read_config("config.yml")
-    if wandb is None:
+    if wandb is None or os.getenv("WANDB_API_KEY") is None:
         config.training.use_wandb = False
     if config.training.use_wandb:
         run = wandb.init(project="FCN", config=config)
