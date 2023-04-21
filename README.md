@@ -65,7 +65,23 @@ from it. Please see `predefined_configs/config_fcn32_densenet121.yml` for exampl
 # Dataset
 
 ## PASCAL VOC
-Validation part is [this](http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar) with [this](https://github.com/shelhamer/fcn.berkeleyvision.org/blob/master/data/pascal/seg11valid.txt) image set. For training [`SBD`](http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/semantic_contours/benchmark.tgz) was used. As i understood this is exact setup as in paper.
+For validation:
+```
+cd path/to/data
+wget http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar
+tar -xvf VOCtrainval_11-May-2012.tar
+```
+and [this](https://github.com/shelhamer/fcn.berkeleyvision.org/blob/master/data/pascal/seg11valid.txt) image set. 
+Just create `seg11valid.txt` in `path/to/data/VOCdevkit/VOC2012/ImageSets/Segmentation`.
+
+For training:
+```
+cd path/to/data
+wget http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/semantic_contours/benchmark.tgz
+mv benchmark.tgz benchmark.tar
+tar -xvf benchmark.tar
+```
+As i understood this is exact setup as in paper.
 
 ## Custom dataset
 I suggest to translate your dataset to PASCAL VOC format and then just use this repo as is
