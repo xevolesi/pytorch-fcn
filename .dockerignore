@@ -1,0 +1,8 @@
+.github/
+.git/
+.venv/
+assets/
+data/
+logs/
+.env
+.env-example

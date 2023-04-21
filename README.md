@@ -101,11 +101,42 @@ but i strongly recommend you to use this awesome tool. In order to use `wandb` y
 These are for development pupropse. They consist of `flake8`, `pytest`, and so on. You can read `requirements.dev.txt` file to get more information about development requirements.
 
 # How to train
+
+## Directly on local machine
 It's quite simple:
 1. Modify `config.yml` file according to your desires;
 2. Run `python train.py`.
 
 It shoud works okay.
+
+
+## With docker
+
+First of all you need to install `docker` and `nvidia-container-toolkit` to be able to run training inside containers:
+1. To install `docker` please visit [official documentation](https://docs.docker.com/engine/install/) and don't forget about [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/);
+2. To install `nvidia-container-toolkit` please follow [official installation guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#setting-up-nvidia-container-toolkit). Note that i performed installation only for `nvidia-container-toolkit`. I `DID NOT` install `Container Device Interface (CDI)`.
+
+After installation of `docker` and `nvidia-container-toolkit` build the image with `docker build -t fcn .` command.
+To run training inside docker container do the following steps:
+1. Modify `config.yml` accroding to your desires;
+2. Run the following command:
+```
+docker run --rm --gpus all --shm-size 100g \
+
+	# This is for training data.
+	-v /home/xevolesi/Projects/pytorch-fcn/data/:/fcn/data \
+
+	# This is for logs.
+	-v /home/xevolesi/Projects/pytorch-fcn/logs:/fcn/logs \
+	
+	# Mount configuration file with your own changes.
+	--mount type=bind,source="$(pwd)"/config.yml,target=/fcn/config.yml,readonly \
+	
+	# You need to provide W&B API key to be able to use it.
+	# You can ommit it if you don't need it.
+	-e WANDB_API_KEY=%your W&B API key% \
+	-it fcn
+```
 
 # Predict on image
 To get predictions on single image please use `predict.py` script. To run this script just do:
