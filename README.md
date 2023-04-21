@@ -89,8 +89,13 @@ to train on your own dataset, but of course you can write you own dataset implem
 and use it.
 
 # Installation
-You need `Python==3.10` and `PyTorch==1.13.1` with `CUDA==11.6`, but i think it's easy
-to run with other versions of PyTorch. Note that i was training the models with `NVidia RTX 4090 24GB` and `128 GB RAM`.
+You need `Python==3.10` and `PyTorch==2.0.0` with `CUDA==11.8`, but i think it's easy
+to run with other versions of PyTorch. Note that i was training the models with:
+1. CPU: `AMD RYZEN 9 7950`;
+2. GPU: `NVidia RTX 4090 24GB`;
+3. RAM: `128 GB`.
+
+So my settings may not be acceptable for your configuration.
 
 ## Core requirements
 Core requirements are listed in `requirements.txt` file. You need them to be able to run training pipeline.
